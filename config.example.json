@@ -1,0 +1,11 @@
+{
+  "theme": "tokyo-night",
+  "show_temperature": true,
+  "show_hosts": true,
+  "show_ssh": true,
+  "show_git": true,
+  "show_notes": true,
+  "show_services_alert": true,
+  "max_hosts_preview": 4,
+  "max_notes_preview": 3
+}

@@ -1,0 +1,1026 @@
+#!/usr/bin/env python3
+"""
+Terminal Welcome Dashboard (welcome)
+A modern, beautiful terminal dashboard for interactive shell startup.
+Features Aurora/Tokyo-Night color palette, Unicode alignment, resource gauges,
+and system diagnostics.
+"""
+
+import sys
+import os
+import time
+import platform
+import socket
+import re
+import glob
+import json
+import unicodedata
+import datetime
+import subprocess
+import shutil
+
+# --- Color Themes Definitions ---
+THEMES = {
+    'tokyo-night': {
+        'name': 'Tokyo Night (Aurora)',
+        'c_cyan': '\033[38;5;117m',    # Sky / Soft Cyan
+        'c_cyan_b': '\033[38;5;51m',   # Vibrant Electric Cyan
+        'c_indigo': '\033[38;5;141m',  # Lavender / Indigo
+        'c_indigo_b': '\033[38;5;147m',# Light Indigo
+        'c_emerald': '\033[38;5;49m',  # Mint / Emerald
+        'c_amber': '\033[38;5;221m',   # Amber / Warm Gold
+        'c_rose': '\033[38;5;203m',    # Coral / Rose
+        'c_slate': '\033[38;5;240m',   # Dark Slate (Border)
+        'c_slate_l': '\033[38;5;246m', # Slate Gray (Labels)
+        'c_white': '\033[38;5;255m',   # Bright White (Values)
+        'c_gray_bg': '\033[38;5;238m', # Gauge background track
+    },
+    'catppuccin': {
+        'name': 'Catppuccin Mocha',
+        'c_cyan': '\033[38;5;117m',
+        'c_cyan_b': '\033[38;5;111m',
+        'c_indigo': '\033[38;5;183m',
+        'c_indigo_b': '\033[38;5;147m',
+        'c_emerald': '\033[38;5;150m',
+        'c_amber': '\033[38;5;216m',
+        'c_rose': '\033[38;5;210m',
+        'c_slate': '\033[38;5;239m',
+        'c_slate_l': '\033[38;5;248m',
+        'c_white': '\033[38;5;254m',
+        'c_gray_bg': '\033[38;5;237m',
+    },
+    'nord': {
+        'name': 'Nord Arctic',
+        'c_cyan': '\033[38;5;110m',
+        'c_cyan_b': '\033[38;5;117m',
+        'c_indigo': '\033[38;5;68m',
+        'c_indigo_b': '\033[38;5;111m',
+        'c_emerald': '\033[38;5;151m',
+        'c_amber': '\033[38;5;222m',
+        'c_rose': '\033[38;5;167m',
+        'c_slate': '\033[38;5;238m',
+        'c_slate_l': '\033[38;5;245m',
+        'c_white': '\033[38;5;253m',
+        'c_gray_bg': '\033[38;5;236m',
+    },
+    'dracula': {
+        'name': 'Dracula Vampire',
+        'c_cyan': '\033[38;5;159m',
+        'c_cyan_b': '\033[38;5;86m',
+        'c_indigo': '\033[38;5;141m',
+        'c_indigo_b': '\033[38;5;183m',
+        'c_emerald': '\033[38;5;120m',
+        'c_amber': '\033[38;5;215m',
+        'c_rose': '\033[38;5;212m',
+        'c_slate': '\033[38;5;239m',
+        'c_slate_l': '\033[38;5;247m',
+        'c_white': '\033[38;5;255m',
+        'c_gray_bg': '\033[38;5;237m',
+    },
+    'cyberpunk': {
+        'name': 'Cyberpunk Neon',
+        'c_cyan': '\033[38;5;51m',
+        'c_cyan_b': '\033[38;5;45m',
+        'c_indigo': '\033[38;5;198m',
+        'c_indigo_b': '\033[38;5;201m',
+        'c_emerald': '\033[38;5;46m',
+        'c_amber': '\033[38;5;226m',
+        'c_rose': '\033[38;5;196m',
+        'c_slate': '\033[38;5;241m',
+        'c_slate_l': '\033[38;5;249m',
+        'c_white': '\033[38;5;231m',
+        'c_gray_bg': '\033[38;5;238m',
+    },
+    'monochrome': {
+        'name': 'Monochrome Minimal',
+        'c_cyan': '\033[38;5;252m',
+        'c_cyan_b': '\033[38;5;255m',
+        'c_indigo': '\033[38;5;250m',
+        'c_indigo_b': '\033[38;5;253m',
+        'c_emerald': '\033[38;5;255m',
+        'c_amber': '\033[38;5;251m',
+        'c_rose': '\033[38;5;245m',
+        'c_slate': '\033[38;5;240m',
+        'c_slate_l': '\033[38;5;245m',
+        'c_white': '\033[38;5;255m',
+        'c_gray_bg': '\033[38;5;236m',
+    }
+}
+
+CURRENT_THEME = 'tokyo-night'
+C_RESET   = '\033[0m'
+C_BOLD    = '\033[1m'
+C_DIM     = '\033[2m'
+
+def set_theme(theme_name: str):
+    global CURRENT_THEME, C_CYAN, C_CYAN_B, C_INDIGO, C_INDIGO_B, C_EMERALD, C_AMBER, C_ROSE, C_SLATE, C_SLATE_L, C_WHITE, C_GRAY_BG
+    theme_key = theme_name.lower().replace('_', '-')
+    if theme_key not in THEMES:
+        theme_key = 'tokyo-night'
+    CURRENT_THEME = theme_key
+    t = THEMES[theme_key]
+    C_CYAN    = t['c_cyan']
+    C_CYAN_B  = t['c_cyan_b']
+    C_INDIGO  = t['c_indigo']
+    C_INDIGO_B= t['c_indigo_b']
+    C_EMERALD = t['c_emerald']
+    C_AMBER   = t['c_amber']
+    C_ROSE    = t['c_rose']
+    C_SLATE   = t['c_slate']
+    C_SLATE_L = t['c_slate_l']
+    C_WHITE   = t['c_white']
+    C_GRAY_BG = t['c_gray_bg']
+
+set_theme('tokyo-night')
+
+CONFIG_PATH = os.path.expanduser('~/.config/welcome/config.json')
+NOTES_PATH = os.path.expanduser('~/.welcome_notes')
+
+def load_config() -> dict:
+    default_config = {
+        'theme': 'tokyo-night',
+        'show_temperature': True,
+        'show_hosts': True,
+        'show_ssh': True,
+        'show_git': True,
+        'show_notes': True,
+        'show_services_alert': True,
+        'max_hosts_preview': 4,
+        'max_notes_preview': 3,
+    }
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, 'r') as f:
+                data = json.load(f)
+                default_config.update(data)
+        except Exception:
+            pass
+    return default_config
+
+def save_config(cfg: dict):
+    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+    with open(CONFIG_PATH, 'w') as f:
+        json.dump(cfg, f, indent=2)
+
+ANSI_RE = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+
+def strip_ansi(s: str) -> str:
+    return ANSI_RE.sub('', s)
+
+def char_width(c: str) -> int:
+    """Accurately calculates visual cell width for Unicode characters and emojis."""
+    if unicodedata.category(c) in ('Mn', 'Me', 'Cc', 'Cf'):
+        return 0
+    if unicodedata.east_asian_width(c) in ('F', 'W'):
+        return 2
+    code = ord(c)
+    if (0x1F300 <= code <= 0x1FAFF) or code in (
+        0x2728, 0x2705, 0x274C, 0x26A1, 0x2600, 0x2601, 0x2614, 0x2615, 0x26BD, 0x26BE,
+        0x26C4, 0x26C5, 0x26CF, 0x26D4, 0x26EA, 0x26F2, 0x26F3, 0x26F5, 0x26FA, 0x26FD
+    ):
+        return 2
+    return 1
+
+def str_width(s: str) -> int:
+    clean = strip_ansi(s)
+    return sum(char_width(c) for c in clean)
+
+def pad_to_width(s: str, width: int, align: str = 'left') -> str:
+    w = str_width(s)
+    pad = max(0, width - w)
+    if align == 'left':
+        return s + (' ' * pad)
+    elif align == 'right':
+        return (' ' * pad) + s
+    else:
+        pad_l = pad // 2
+        pad_r = pad - pad_l
+        return (' ' * pad_l) + s + (' ' * pad_r)
+
+def truncate_to_width(s: str, max_w: int) -> str:
+    if str_width(s) <= max_w:
+        return s
+    res = []
+    curr_w = 0
+    for ch in s:
+        cw = char_width(ch)
+        if curr_w + cw + 1 > max_w:
+            break
+        res.append(ch)
+        curr_w += cw
+    return ''.join(res) + '…'
+
+def make_gauge(pct: float, length: int = 8) -> str:
+    pct = max(0.0, min(100.0, pct))
+    filled = int(round(pct / 100.0 * length))
+    empty = length - filled
+    if pct >= 85:
+        col = C_ROSE
+    elif pct >= 65:
+        col = C_AMBER
+    else:
+        col = C_EMERALD
+    return f'[{col}{"■" * filled}{C_GRAY_BG}{"░" * empty}{C_RESET}]'
+
+def get_cpu_percent(sample_ms: int = 40) -> float:
+    try:
+        def read_stat():
+            with open('/proc/stat', 'r') as f:
+                fields = [float(x) for x in f.readline().strip().split()[1:]]
+                idle = fields[3] + (fields[4] if len(fields) > 4 else 0.0)
+                total = sum(fields)
+                return idle, total
+        i1, t1 = read_stat()
+        time.sleep(sample_ms / 1000.0)
+        i2, t2 = read_stat()
+        d_tot = t2 - t1
+        d_idle = i2 - i1
+        if d_tot > 0:
+            return max(0.0, min(100.0, (1.0 - (d_idle / d_tot)) * 100.0))
+    except Exception:
+        pass
+    try:
+        l1 = os.getloadavg()[0]
+        cores = os.cpu_count() or 1
+        return max(0.0, min(100.0, (l1 / cores) * 100.0))
+    except Exception:
+        return 0.0
+
+def get_cpu_temp() -> float:
+    """Reads CPU temperature in °C from hwmon or thermal_zone."""
+    try:
+        for path in glob.glob('/sys/class/hwmon/hwmon*/temp*_input'):
+            try:
+                with open(path, 'r') as f:
+                    val = float(f.read().strip()) / 1000.0
+                    if 15.0 <= val <= 115.0:
+                        return val
+            except Exception:
+                pass
+        for path in glob.glob('/sys/class/thermal/thermal_zone*/temp'):
+            try:
+                with open(path, 'r') as f:
+                    val = float(f.read().strip()) / 1000.0
+                    if 15.0 <= val <= 115.0:
+                        return val
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return None
+
+def get_dynamic_greeting(user_display: str) -> str:
+    hour = datetime.datetime.now().hour
+    if 5 <= hour < 12:
+        icon, greet = '🌅', 'Good morning'
+    elif 12 <= hour < 17:
+        icon, greet = '☀️', 'Good afternoon'
+    elif 17 <= hour < 22:
+        icon, greet = '🌆', 'Good evening'
+    else:
+        icon, greet = '🌙', 'Welcome back'
+    return f"{icon} {greet}, {C_WHITE}{user_display}!{C_RESET}"
+
+def get_git_info(cwd: str = None) -> dict:
+    if cwd is None:
+        cwd = os.getcwd()
+    try:
+        res = subprocess.run(['git', 'rev-parse', '--is-inside-work-tree'], cwd=cwd, capture_output=True, text=True, timeout=0.1)
+        if res.returncode != 0 or 'true' not in res.stdout:
+            return None
+        branch = subprocess.run(['git', 'branch', '--show-current'], cwd=cwd, capture_output=True, text=True, timeout=0.1).stdout.strip() or 'HEAD'
+        status_lines = subprocess.run(['git', 'status', '--porcelain'], cwd=cwd, capture_output=True, text=True, timeout=0.1).stdout.strip().splitlines()
+        repo_name = os.path.basename(os.path.abspath(cwd))
+        return {
+            'repo': repo_name,
+            'branch': branch,
+            'dirty_count': len(status_lines)
+        }
+    except Exception:
+        return None
+
+def get_notes() -> list:
+    if os.path.exists(NOTES_PATH):
+        try:
+            with open(NOTES_PATH, 'r') as f:
+                lines = [l.strip() for l in f if l.strip() and not l.strip().startswith('#')]
+                return lines
+        except Exception:
+            pass
+    return []
+
+def get_system_alerts() -> list:
+    alerts = []
+    if os.path.exists('/var/run/reboot-required'):
+        alerts.append('🔄 Reboot required to complete system updates')
+    try:
+        res = subprocess.run(['systemctl', '--failed', '--quiet'], capture_output=True, timeout=0.1)
+        if res.returncode != 0:
+            lines_res = subprocess.run(['systemctl', '--failed', '--no-legend', '--plain'], capture_output=True, text=True, timeout=0.1)
+            f_lines = [l for l in lines_res.stdout.strip().splitlines() if l.strip()]
+            count = len(f_lines)
+            if count > 0:
+                alerts.append(f'⚠️  {count} failed system service{"s" if count > 1 else ""}')
+    except Exception:
+        pass
+    return alerts
+
+def ping_target(host_or_ip: str, timeout_sec: float = 0.5) -> float:
+    try:
+        res = subprocess.run(
+            ['ping', '-c', '1', '-W', '1', host_or_ip],
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec + 0.3
+        )
+        if res.returncode == 0:
+            match = re.search(r'time=([\d\.]+)\s*ms', res.stdout)
+            if match:
+                return float(match.group(1))
+            return 1.0
+    except Exception:
+        pass
+    return -1.0
+
+DEFAULT_IPV6_IPS = {'::1', 'fe00::0', 'ff00::0', 'ff02::1', 'ff02::2', 'ff02::3'}
+DEFAULT_HOSTNAMES = {
+    'localhost', 'localhost.localdomain', 'localhost4', 'localhost4.localdomain4',
+    'localhost6', 'localhost6.localdomain6', 'ip6-localhost', 'ip6-loopback',
+    'ip6-localnet', 'ip6-mcastprefix', 'ip6-allnodes', 'ip6-allrouters', 'ip6-allhosts'
+}
+
+def is_ip(s: str) -> bool:
+    """Checks if a string is a valid IPv4 address or IPv6 format."""
+    if re.match(r'^\d{1,3}(\.\d{1,3}){3}$', s):
+        return True
+    if ':' in s and re.match(r'^[0-9a-fA-F:]+$', s):
+        return True
+    return False
+
+def is_default_host(ip: str, domains: list, system_hostname: str) -> bool:
+    """Determines whether a host mapping is part of default OS boilerplate or custom-added."""
+    h_lower = system_hostname.lower()
+    if ip == '127.0.0.1' and all(d.lower() in ('localhost', 'localhost.localdomain') for d in domains):
+        return True
+    if (ip.startswith('127.0.1.') or ip == '127.0.0.1') and all(d.lower() in ('localhost', h_lower) for d in domains):
+        return True
+    if ip in DEFAULT_IPV6_IPS and all(d.lower() in DEFAULT_HOSTNAMES or d.lower() == h_lower for d in domains):
+        return True
+    return False
+
+def get_hosts_insights(path: str = '/etc/hosts') -> dict:
+    """Parses /etc/hosts to extract custom active and disabled (commented) host overrides."""
+    active_entries = []
+    disabled_entries = []
+    system_hostname = platform.node()
+
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                for line in f:
+                    raw = line.strip()
+                    if not raw:
+                        continue
+                    # Check for commented-out host entries
+                    if raw.startswith('#'):
+                        comment_body = raw.lstrip('#').strip()
+                        if not comment_body:
+                            continue
+                        parts = comment_body.split()
+                        if len(parts) >= 2 and is_ip(parts[0]):
+                            ip, domains = parts[0], parts[1:]
+                            if not is_default_host(ip, domains, system_hostname):
+                                disabled_entries.append({'ip': ip, 'domains': domains, 'raw': raw})
+                        continue
+
+                    # Active host entry (strip trailing comment)
+                    if '#' in raw:
+                        raw_active = raw.split('#', 1)[0].strip()
+                    else:
+                        raw_active = raw
+
+                    parts = raw_active.split()
+                    if len(parts) >= 2 and is_ip(parts[0]):
+                        ip, domains = parts[0], parts[1:]
+                        if not is_default_host(ip, domains, system_hostname):
+                            active_entries.append({'ip': ip, 'domains': domains, 'raw': raw})
+        except Exception:
+            pass
+
+    return {
+        'active': active_entries,
+        'disabled': disabled_entries,
+        'active_count': len(active_entries),
+        'disabled_count': len(disabled_entries)
+    }
+
+def get_system_stats():
+    raw_user = os.getenv('USER') or os.getenv('LOGNAME') or 'user'
+    name_display = raw_user.capitalize()
+
+    distro = 'Linux'
+    if os.path.exists('/etc/os-release'):
+        try:
+            with open('/etc/os-release', 'r') as f:
+                for line in f:
+                    if line.startswith('PRETTY_NAME='):
+                        distro = line.split('=', 1)[1].strip().strip('\"')
+                        break
+        except Exception:
+            pass
+
+    arch = platform.machine()
+    kernel = platform.release()
+    hostname = platform.node()
+
+    # CPU Model
+    cpu_name = 'Unknown CPU'
+    core_count = os.cpu_count() or 1
+    try:
+        with open('/proc/cpuinfo', 'r') as f:
+            for line in f:
+                if 'model name' in line:
+                    raw = line.split(':', 1)[1].strip()
+                    clean = re.sub(r'\s+', ' ', raw).replace('(R)', '').replace('(TM)', '').replace(' CPU', '').strip()
+                    if ' @ ' in clean:
+                        clean = clean.split(' @ ')[0].strip()
+                    cpu_name = clean
+                    break
+    except Exception:
+        pass
+
+    # CPU Usage & Temp
+    cpu_pct = get_cpu_percent(30)
+    cpu_temp = get_cpu_temp()
+
+    # Memory & Swap
+    mem_info = {}
+    try:
+        with open('/proc/meminfo', 'r') as f:
+            for line in f:
+                parts = line.split(':')
+                if len(parts) == 2:
+                    mem_info[parts[0].strip()] = int(parts[1].strip().split()[0])
+    except Exception:
+        pass
+
+    mem_total = mem_info.get('MemTotal', 0) / 1024 / 1024
+    mem_avail = mem_info.get('MemAvailable', 0) / 1024 / 1024
+    mem_used = max(0.0, mem_total - mem_avail)
+    mem_pct = (mem_used / mem_total * 100) if mem_total > 0 else 0.0
+
+    swap_total = mem_info.get('SwapTotal', 0) / 1024 / 1024
+    swap_free = mem_info.get('SwapFree', 0) / 1024 / 1024
+    swap_used = max(0.0, swap_total - swap_free)
+    swap_pct = (swap_used / swap_total * 100) if swap_total > 0 else 0.0
+
+    # Root Disk
+    try:
+        st = os.statvfs('/')
+        disk_total = (st.f_blocks * st.f_frsize) / (1024**3)
+        disk_free = (st.f_bavail * st.f_frsize) / (1024**3)
+        disk_used = disk_total - disk_free
+        disk_pct = (disk_used / disk_total * 100) if disk_total > 0 else 0.0
+    except Exception:
+        disk_total, disk_used, disk_pct = 0.0, 0.0, 0.0
+
+    # Load Averages
+    try:
+        l1, l5, l15 = os.getloadavg()
+    except Exception:
+        l1, l5, l15 = 0.0, 0.0, 0.0
+
+    # Uptime
+    uptime_str = 'unknown'
+    try:
+        with open('/proc/uptime', 'r') as f:
+            sec = float(f.readline().split()[0])
+            d = int(sec // 86400)
+            h = int((sec % 86400) // 3600)
+            m = int((sec % 3600) // 60)
+            if d > 0:
+                uptime_str = f'{d}d {h}h {m}m'
+            elif h > 0:
+                uptime_str = f'{h}h {m}m'
+            else:
+                uptime_str = f'{m}m'
+    except Exception:
+        pass
+
+    # Network IP
+    lan_ip = '127.0.0.1'
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.1)
+        s.connect(('1.1.1.1', 80))
+        lan_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+
+    # SSH Hosts Count
+    ssh_count = 0
+    ssh_config_path = os.path.expanduser('~/.ssh/config')
+    if os.path.exists(ssh_config_path):
+        try:
+            with open(ssh_config_path, 'r') as f:
+                for line in f:
+                    s_line = line.strip()
+                    if s_line.startswith('Host ') or s_line.startswith('host '):
+                        for h in s_line.split()[1:]:
+                            if not any(c in h for c in '*?!'):
+                                ssh_count += 1
+        except Exception:
+            pass
+
+    hosts_info = get_hosts_insights()
+    alerts = get_system_alerts()
+    git_info = get_git_info()
+    notes = get_notes()
+
+    return {
+        'user': raw_user,
+        'user_display': name_display,
+        'distro': distro,
+        'arch': arch,
+        'kernel': kernel,
+        'hostname': hostname,
+        'cpu_name': cpu_name,
+        'core_count': core_count,
+        'cpu_pct': cpu_pct,
+        'cpu_temp': cpu_temp,
+        'mem_total': mem_total,
+        'mem_used': mem_used,
+        'mem_pct': mem_pct,
+        'swap_total': swap_total,
+        'swap_used': swap_used,
+        'swap_pct': swap_pct,
+        'disk_total': disk_total,
+        'disk_used': disk_used,
+        'disk_pct': disk_pct,
+        'load': (l1, l5, l15),
+        'uptime_str': uptime_str,
+        'lan_ip': lan_ip,
+        'ssh_count': ssh_count,
+        'hosts_active': hosts_info['active'],
+        'hosts_disabled': hosts_info['disabled'],
+        'hosts_active_count': hosts_info['active_count'],
+        'hosts_disabled_count': hosts_info['disabled_count'],
+        'alerts': alerts,
+        'git_info': git_info,
+        'notes': notes,
+        'date_time_str': datetime.datetime.now().strftime('%a, %b %d %Y · %I:%M:%S %p')
+    }
+
+def print_mini_summary(s):
+    """Outputs a 1-line compact status summary."""
+    if s['hosts_active_count'] > 0:
+        hosts_txt = f"{s['hosts_active_count']} active"
+    elif s['hosts_disabled_count'] > 0:
+        hosts_txt = f"{s['hosts_disabled_count']} off"
+    else:
+        hosts_txt = "default"
+
+    temp_txt = f" ({s['cpu_temp']:.0f}°C)" if s['cpu_temp'] is not None else ""
+
+    line = (
+        f"{C_BOLD}{C_CYAN_B}✨ {s['user']}@{s['hostname']}{C_RESET} {C_SLATE}│{C_RESET} "
+        f"{C_INDIGO}🐧 {s['distro']}{C_RESET} {C_SLATE}│{C_RESET} "
+        f"{C_AMBER}⏱️ {s['uptime_str']}{C_RESET} {C_SLATE}│{C_RESET} "
+        f"{C_EMERALD}⚡ CPU: {s['cpu_pct']:.0f}%{temp_txt}{C_RESET} {C_SLATE}│{C_RESET} "
+        f"{C_EMERALD}🧠 RAM: {s['mem_used']:.1f}/{s['mem_total']:.1f}G ({s['mem_pct']:.0f}%){C_RESET} {C_SLATE}│{C_RESET} "
+        f"{C_CYAN}💾 Disk: {s['disk_used']:.0f}/{s['disk_total']:.0f}G ({s['disk_pct']:.0f}%){C_RESET} {C_SLATE}│{C_RESET} "
+        f"{C_INDIGO_B}🔑 SSH: {s['ssh_count']}{C_RESET} {C_SLATE}│{C_RESET} "
+        f"{C_CYAN_B}🌐 Hosts: {hosts_txt}{C_RESET}"
+    )
+    print(line)
+
+def print_hosts_overview(do_ping: bool = False):
+    """Prints a detailed view of /etc/hosts custom entries with optional reachability check."""
+    h = get_hosts_insights()
+    INNER_WIDTH = 78
+    top_border = f'{C_SLATE}╭' + ('─' * INNER_WIDTH) + f'╮{C_RESET}'
+    mid_line   = f'{C_SLATE}├' + ('─' * INNER_WIDTH) + f'┤{C_RESET}'
+    bot_border = f'{C_SLATE}╰' + ('─' * INNER_WIDTH) + f'╯{C_RESET}'
+
+    def make_row(content: str) -> str:
+        return f'{C_SLATE}│{C_RESET} {pad_to_width(content, INNER_WIDTH - 2)} {C_SLATE}│{C_RESET}'
+
+    print()
+    print(top_border)
+    hdr_txt = f"{C_BOLD}{C_CYAN_B}🌐 /etc/hosts Custom Entries & Overrides{C_RESET}"
+    if do_ping:
+        hdr_txt += f" {C_SLATE_L}(Live Ping Check){C_RESET}"
+    print(make_row(hdr_txt))
+    print(mid_line)
+
+    if h['active_count'] == 0 and h['disabled_count'] == 0:
+        print(make_row(f"{C_SLATE_L}No custom host entries found. File contains standard system defaults only.{C_RESET}"))
+    else:
+        if do_ping:
+            col_hdr = f"{C_BOLD}{C_WHITE}{'STATUS':<11} {'IP ADDRESS':<17} {'PING':<12} {'MAPPED DOMAIN(S)'}{C_RESET}"
+        else:
+            col_hdr = f"{C_BOLD}{C_WHITE}{'STATUS':<11} {'IP ADDRESS':<18} {'MAPPED DOMAIN(S)'}{C_RESET}"
+        print(make_row(col_hdr))
+        print(mid_line)
+
+        for item in h['active']:
+            dom_str = ', '.join(item['domains'])
+            if do_ping:
+                lat = ping_target(item['ip'])
+                if lat >= 0:
+                    p_txt = f"{C_EMERALD}{lat:4.0f}ms{C_RESET}"
+                else:
+                    p_txt = f"{C_ROSE}unreach{C_RESET}"
+                ping_cell = pad_to_width(p_txt, 11) + " "
+                dom_disp = truncate_to_width(dom_str, INNER_WIDTH - 2 - 42)
+                row_str = f"{C_EMERALD}● ACTIVE   {C_WHITE}{item['ip']:<17}{C_RESET}{ping_cell}{C_CYAN_B}{dom_disp}{C_RESET}"
+            else:
+                dom_disp = truncate_to_width(dom_str, INNER_WIDTH - 2 - 30)
+                row_str = f"{C_EMERALD}● ACTIVE   {C_WHITE}{item['ip']:<18}{C_CYAN_B}{dom_disp}{C_RESET}"
+            print(make_row(row_str))
+
+        for item in h['disabled']:
+            dom_str = ', '.join(item['domains'])
+            if do_ping:
+                p_txt = f"{C_SLATE_L}--{C_RESET}"
+                ping_cell = pad_to_width(p_txt, 11) + " "
+                dom_disp = truncate_to_width(dom_str, INNER_WIDTH - 2 - 42)
+                row_str = f"{C_SLATE_L}○ DISABLED {item['ip']:<17}{ping_cell}{dom_disp}{C_RESET}"
+            else:
+                dom_disp = truncate_to_width(dom_str, INNER_WIDTH - 2 - 30)
+                row_str = f"{C_SLATE_L}○ DISABLED {item['ip']:<18}{dom_disp}{C_RESET}"
+            print(make_row(row_str))
+
+    print(mid_line)
+    summary_line = f"{C_SLATE_L}Total Custom Entries: {C_BOLD}{C_WHITE}{h['active_count']}{C_RESET} {C_SLATE_L}active, {C_BOLD}{C_WHITE}{h['disabled_count']}{C_RESET} {C_SLATE_L}disabled in /etc/hosts{C_RESET}"
+    print(make_row(summary_line))
+    print(bot_border)
+    print()
+
+def toggle_host_entry(target: str):
+    """Toggles active/disabled state for a host entry in /etc/hosts."""
+    if not os.path.exists('/etc/hosts'):
+        print(f"{C_ROSE}Error: /etc/hosts not found.{C_RESET}")
+        return
+
+    try:
+        with open('/etc/hosts', 'r') as f:
+            lines = f.readlines()
+    except Exception as e:
+        print(f"{C_ROSE}Error reading /etc/hosts: {e}{C_RESET}")
+        return
+
+    target_clean = target.strip().lower()
+    matched_idx = -1
+    new_line = ""
+    action = ""
+
+    for idx, line in enumerate(lines):
+        raw = line.strip()
+        if not raw:
+            continue
+        # Check if active
+        if not raw.startswith('#'):
+            parts = raw.split()
+            if len(parts) >= 2 and (target_clean == parts[0].lower() or target_clean in [p.lower() for p in parts[1:]]):
+                matched_idx = idx
+                new_line = f"# {line}"
+                action = "DISABLED"
+                break
+        else:
+            body = raw.lstrip('#').strip()
+            parts = body.split()
+            if len(parts) >= 2 and is_ip(parts[0]) and (target_clean == parts[0].lower() or target_clean in [p.lower() for p in parts[1:]]):
+                matched_idx = idx
+                new_line = body + "\n"
+                action = "ACTIVATED"
+                break
+
+    if matched_idx == -1:
+        print(f"{C_AMBER}No matching custom host entry found for '{target}'.{C_RESET}")
+        print(f"Use '{C_WHITE}welcome --hosts{C_RESET}' to see current entries.")
+        return
+
+    lines[matched_idx] = new_line
+    new_content = ''.join(lines)
+
+    # Write using sudo tee or direct if root
+    if os.geteuid() == 0:
+        with open('/etc/hosts', 'w') as f:
+            f.write(new_content)
+        print(f"{C_EMERALD}✓ Successfully {action} host entry for '{target}'.{C_RESET}")
+    else:
+        p = subprocess.Popen(['sudo', 'tee', '/etc/hosts'], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
+        p.communicate(input=new_content.encode('utf-8'))
+        if p.returncode == 0:
+            print(f"{C_EMERALD}✓ Successfully {action} host entry for '{target}'.{C_RESET}")
+        else:
+            print(f"{C_ROSE}Failed to update /etc/hosts (requires sudo permissions).{C_RESET}")
+
+def print_dashboard(cfg: dict = None):
+    if cfg is None:
+        cfg = load_config()
+
+    s = get_system_stats()
+
+    INNER_WIDTH = 78
+    COL_L_WIDTH = 38
+    COL_R_WIDTH = INNER_WIDTH - COL_L_WIDTH - 1  # 39
+
+    top_border = f'{C_SLATE}╭' + ('─' * INNER_WIDTH) + f'╮{C_RESET}'
+    mid_sep    = f'{C_SLATE}├' + ('─' * COL_L_WIDTH) + '┬' + ('─' * COL_R_WIDTH) + f'┤{C_RESET}'
+    mid_line   = f'{C_SLATE}├' + ('─' * INNER_WIDTH) + f'┤{C_RESET}'
+    bot_border = f'{C_SLATE}╰' + ('─' * INNER_WIDTH) + f'╯{C_RESET}'
+
+    def make_full_row(content: str) -> str:
+        return f'{C_SLATE}│{C_RESET} {pad_to_width(content, INNER_WIDTH - 2)} {C_SLATE}│{C_RESET}'
+
+    def make_split_row(left: str, right: str) -> str:
+        l_pad = pad_to_width(left, COL_L_WIDTH - 2)
+        r_pad = pad_to_width(right, COL_R_WIDTH - 2)
+        return f'{C_SLATE}│{C_RESET} {l_pad} {C_SLATE}│{C_RESET} {r_pad} {C_SLATE}│{C_RESET}'
+
+    # Header section
+    greeting = get_dynamic_greeting(s["user_display"])
+    header_l = f'{C_BOLD}{C_CYAN_B}{greeting}'
+    header_r = f'{C_INDIGO}🐧 {s["distro"]} ({s["arch"]}){C_RESET}'
+    header_str = pad_to_width(header_l, INNER_WIDTH - 2 - str_width(header_r)) + header_r
+
+    sub_l = f'{C_SLATE_L}📅 {s["date_time_str"]}{C_RESET}'
+    sub_r = f'{C_AMBER}⏱️  Uptime: {C_WHITE}{s["uptime_str"]}{C_RESET}'
+    sub_str = pad_to_width(sub_l, INNER_WIDTH - 2 - str_width(sub_r)) + sub_r
+
+    # Left Column: System & Hardware
+    l_col_hdr = f'{C_BOLD}{C_CYAN}SYSTEM & HARDWARE{C_RESET}'
+    os_val = s['distro'][:26]
+    kernel_val = s['kernel'][:26]
+    cpu_val = f"{s['cpu_name']} ({s['core_count']}T)"[:26]
+    host_val = f"{s['user']}@{s['hostname']}"[:26]
+    ip_val = s['lan_ip'][:26]
+
+    l_os     = f'{C_SLATE_L}OS     :{C_RESET} {C_WHITE}{os_val}{C_RESET}'
+    l_kernel = f'{C_SLATE_L}Kernel :{C_RESET} {C_WHITE}{kernel_val}{C_RESET}'
+    l_cpu    = f'{C_SLATE_L}CPU    :{C_RESET} {C_WHITE}{cpu_val}{C_RESET}'
+    l_host   = f'{C_SLATE_L}Host   :{C_RESET} {C_EMERALD}{host_val}{C_RESET}'
+    l_ip     = f'{C_SLATE_L}IP     :{C_RESET} {C_CYAN}{ip_val}{C_RESET}'
+
+    # Right Column: Resource Usage & Sensors
+    r_col_hdr = f'{C_BOLD}{C_CYAN}RESOURCE USAGE{C_RESET}'
+    
+    cpu_gauge = make_gauge(s['cpu_pct'], 8)
+    if cfg.get('show_temperature', True) and s['cpu_temp'] is not None:
+        t_val = s['cpu_temp']
+        if t_val >= 80:
+            t_col = C_ROSE
+        elif t_val >= 60:
+            t_col = C_AMBER
+        else:
+            t_col = C_EMERALD
+        temp_str = f" {t_col}{t_val:4.1f}°C{C_RESET}"
+    else:
+        temp_str = f" {C_SLATE_L}({s['core_count']}T){C_RESET}"
+
+    r_cpu = f'{C_SLATE_L}CPU  {cpu_gauge} {C_WHITE}{s["cpu_pct"]:4.1f}%{C_RESET}{temp_str}'
+    
+    mem_gauge = make_gauge(s['mem_pct'], 8)
+    r_mem     = f'{C_SLATE_L}RAM  {mem_gauge} {C_WHITE}{s["mem_used"]:.1f}/{s["mem_total"]:.1f}GB{C_RESET} {C_SLATE_L}({s["mem_pct"]:.0f}%){C_RESET}'
+    
+    disk_gauge= make_gauge(s['disk_pct'], 8)
+    r_disk    = f'{C_SLATE_L}Disk {disk_gauge} {C_WHITE}{s["disk_used"]:.0f}/{s["disk_total"]:.0f}GB{C_RESET} {C_SLATE_L}({s["disk_pct"]:.0f}%){C_RESET}'
+    
+    if s['swap_total'] > 0:
+        swap_gauge = make_gauge(s['swap_pct'], 8)
+        r_swap     = f'{C_SLATE_L}Swap {swap_gauge} {C_WHITE}{s["swap_used"]:.1f}/{s["swap_total"]:.1f}GB{C_RESET} {C_SLATE_L}({s["swap_pct"]:.0f}%){C_RESET}'
+    else:
+        r_swap     = f'{C_SLATE_L}Swap :{C_RESET} {C_SLATE_L}Disabled / None{C_RESET}'
+        
+    l1, l5, l15 = s['load']
+    r_load    = f'{C_SLATE_L}Load :{C_RESET} {C_WHITE}{l1:.2f}{C_RESET}, {C_WHITE}{l5:.2f}{C_RESET}, {C_WHITE}{l15:.2f}{C_RESET} {C_SLATE_L}(1, 5, 15m){C_RESET}'
+
+    # Print dashboard box
+    print()
+    print(top_border)
+    print(make_full_row(header_str))
+    print(make_full_row(sub_str))
+    print(mid_sep)
+    print(make_split_row(l_col_hdr, r_col_hdr))
+    print(make_split_row(l_os, r_cpu))
+    print(make_split_row(l_kernel, r_mem))
+    print(make_split_row(l_cpu, r_disk))
+    print(make_split_row(l_host, r_swap))
+    print(make_split_row(l_ip, r_load))
+
+    # Alerts Section (if any)
+    if cfg.get('show_services_alert', True) and s['alerts']:
+        print(mid_line)
+        for alert in s['alerts']:
+            print(make_full_row(f"{C_AMBER}{alert}{C_RESET}"))
+
+    # Git Workspace Widget (if in a git repo)
+    if cfg.get('show_git', True) and s['git_info']:
+        g = s['git_info']
+        dirty_str = f"{C_ROSE}±{g['dirty_count']} uncommitted{C_RESET}" if g['dirty_count'] > 0 else f"{C_EMERALD}clean{C_RESET}"
+        git_row = f"{C_INDIGO}🌿 Git Context    :{C_RESET} {C_BOLD}{C_WHITE}{g['repo']}{C_RESET} {C_SLATE_L}on{C_RESET} {C_CYAN_B} {g['branch']}{C_RESET} {C_SLATE_L}({dirty_str}{C_SLATE_L}){C_RESET}"
+        print(mid_line)
+        print(make_full_row(git_row))
+
+    # Notes / Todo Widget
+    if cfg.get('show_notes', True) and s['notes']:
+        print(mid_line)
+        note_hdr = f"{C_AMBER}📝 Notes & Tasks  :{C_RESET} {C_SLATE_L}{len(s['notes'])} item(s) in ~/.welcome_notes{C_RESET}"
+        print(make_full_row(note_hdr))
+        max_n = cfg.get('max_notes_preview', 3)
+        for note in s['notes'][:max_n]:
+            disp_note = truncate_to_width(note, INNER_WIDTH - 2 - 6)
+            print(make_full_row(f"  {C_AMBER}▫{C_RESET} {C_WHITE}{disp_note}{C_RESET}"))
+
+    # Host Entries Section
+    if cfg.get('show_hosts', True):
+        has_custom_hosts = (s['hosts_active_count'] > 0 or s['hosts_disabled_count'] > 0)
+        if has_custom_hosts:
+            status_parts = []
+            if s['hosts_active_count'] > 0:
+                status_parts.append(f"{C_BOLD}{C_EMERALD}{s['hosts_active_count']} active{C_RESET}")
+            if s['hosts_disabled_count'] > 0:
+                status_parts.append(f"{C_AMBER}{s['hosts_disabled_count']} disabled{C_RESET}")
+            summary_txt = ', '.join(status_parts)
+            hosts_hdr = f"{C_CYAN_B}🌐 Host Overrides :{C_RESET} {summary_txt} {C_SLATE_L}configured in /etc/hosts{C_RESET}"
+        else:
+            hosts_hdr = f"{C_CYAN_B}🌐 Host Overrides :{C_RESET} {C_SLATE_L}Default system mappings (0 custom overrides in /etc/hosts){C_RESET}"
+
+        print(mid_line)
+        print(make_full_row(hosts_hdr))
+        if has_custom_hosts:
+            shown = 0
+            max_preview = cfg.get('max_hosts_preview', 4)
+            for item in s['hosts_active'][:max_preview]:
+                dom_str = ', '.join(item['domains'])
+                dom_disp = truncate_to_width(dom_str, INNER_WIDTH - 2 - 25)
+                row = f"  {C_EMERALD}●{C_RESET} {C_WHITE}{item['ip']:<15}{C_RESET} {C_CYAN}➜{C_RESET} {C_BOLD}{C_CYAN_B}{dom_disp}{C_RESET}"
+                print(make_full_row(row))
+                shown += 1
+
+            rem_slots = max_preview - shown
+            for item in s['hosts_disabled'][:rem_slots]:
+                dom_str = ', '.join(item['domains'])
+                dom_disp = truncate_to_width(dom_str, INNER_WIDTH - 2 - 36)
+                row = f"  {C_SLATE_L}○ {item['ip']:<15} ➜ {dom_disp} (disabled){C_RESET}"
+                print(make_full_row(row))
+                shown += 1
+
+            remaining = (s['hosts_active_count'] + s['hosts_disabled_count']) - shown
+            if remaining > 0:
+                more_row = f"  {C_SLATE_L}... and {remaining} more host entries (use 'welcome --hosts' to view all){C_RESET}"
+                print(make_full_row(more_row))
+
+    # Footer Section
+    if cfg.get('show_ssh', True):
+        foot_ssh  = f'{C_INDIGO_B}🔑 SSH Hosts     :{C_RESET} {C_BOLD}{C_WHITE}{s["ssh_count"]}{C_RESET} {C_SLATE_L}configured hosts in ~/.ssh/config{C_RESET}'
+        foot_cmd1 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}sshm{C_RESET}              {C_SLATE_L}Interactive SSH manager & connection picker{C_RESET}'
+        foot_cmd2 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}sshm <name>{C_RESET}       {C_SLATE_L}Instant direct connect or filtered picker{C_RESET}'
+        foot_cmd3 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}welcome --hosts{C_RESET}   {C_SLATE_L}View all host overrides (or -p to ping check){C_RESET}'
+
+        print(mid_line)
+        print(make_full_row(foot_ssh))
+        print(make_full_row(foot_cmd1))
+        print(make_full_row(foot_cmd2))
+        print(make_full_row(foot_cmd3))
+
+    print(bot_border)
+    print()
+
+def run_live_watch(interval: float = 2.0):
+    """Runs a live auto-refreshing monitor loop until user presses q or Ctrl+C."""
+    cfg = load_config()
+    print('\033[?25l', end='')  # Hide cursor
+    try:
+        while True:
+            # Clear screen and move to top
+            print('\033[2J\033[H', end='')
+            print_dashboard(cfg)
+            print(f" {C_SLATE_L}Watching every {interval:.1f}s · Press {C_WHITE}Ctrl+C{C_SLATE_L} or {C_WHITE}q{C_SLATE_L} to exit{C_RESET}")
+            time.sleep(interval)
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        print('\033[?25h', end='')  # Restore cursor
+        print()
+
+def add_note(text: str):
+    os.makedirs(os.path.dirname(NOTES_PATH), exist_ok=True) if os.path.dirname(NOTES_PATH) else None
+    with open(NOTES_PATH, 'a') as f:
+        f.write(text.strip() + '\n')
+    print(f"{C_EMERALD}✓ Note added to ~/.welcome_notes:{C_RESET} {text}")
+
+def clear_notes():
+    if os.path.exists(NOTES_PATH):
+        os.remove(NOTES_PATH)
+    print(f"{C_EMERALD}✓ Cleared all notes from ~/.welcome_notes{C_RESET}")
+
+def main():
+    cfg = load_config()
+
+    # CLI Argument parsing
+    args = sys.argv[1:]
+    
+    # Handle Theme override from CLI
+    for i, a in enumerate(args):
+        if a in ('--theme', '-T') and i + 1 < len(args):
+            selected = args[i + 1]
+            if selected in THEMES:
+                set_theme(selected)
+                cfg['theme'] = selected
+            else:
+                print(f"{C_ROSE}Unknown theme '{selected}'. Available themes:{C_RESET} {', '.join(THEMES.keys())}")
+                sys.exit(1)
+
+    if 'theme' in cfg:
+        set_theme(cfg['theme'])
+
+    if '--help' in args or '-h' in args:
+        print(f"{C_BOLD}{C_CYAN_B}Terminal Welcome Dashboard (welcome){C_RESET}")
+        print("A fast, customizable system dashboard for interactive shell startup.\n")
+        print(f"{C_BOLD}Usage:{C_RESET} welcome [OPTIONS]\n")
+        print(f"{C_BOLD}Display Modes:{C_RESET}")
+        print("  --mini, -m, --compact    Display a 1-line compact status summary")
+        print("  --hosts, -H              Display all /etc/hosts custom entries & status")
+        print("  --ping, -p               Ping test all /etc/hosts custom targets")
+        print("  --watch, -w [SEC]        Run live real-time auto-refresh monitor (default 2s)")
+        print("  --json, -j               Output complete system stats in JSON format\n")
+        print(f"{C_BOLD}Theme & Customization:{C_RESET}")
+        print(f"  --theme, -T <name>       Set color theme ({', '.join(THEMES.keys())})")
+        print("  --config                 Display configuration file path and current settings\n")
+        print(f"{C_BOLD}Productivity & Controls:{C_RESET}")
+        print("  --note <text>            Add a quick task/reminder to ~/.welcome_notes")
+        print("  --clear-notes            Clear all items in ~/.welcome_notes")
+        print("  --toggle, -t <domain/ip> Quick toggle active/disabled in /etc/hosts")
+        print("  --help, -h               Show this help message and exit\n")
+        sys.exit(0)
+
+    if '--config' in args:
+        print(f"{C_BOLD}{C_CYAN_B}Welcome Dashboard Configuration:{C_RESET}")
+        print(f"Config File : {C_WHITE}{CONFIG_PATH}{C_RESET}")
+        print(f"Notes File  : {C_WHITE}{NOTES_PATH}{C_RESET}")
+        print(json.dumps(cfg, indent=2))
+        return
+
+    if '--json' in args or '-j' in args:
+        stats = get_system_stats()
+        print(json.dumps(stats, indent=2, default=str))
+        return
+
+    if '--note' in args:
+        try:
+            n_idx = args.index('--note')
+            if n_idx + 1 < len(args):
+                add_note(' '.join(args[n_idx + 1:]))
+            else:
+                print(f"{C_ROSE}Error: Please specify note text. Example: welcome --note 'deploy new release'{C_RESET}")
+        except Exception as e:
+            print(f"{C_ROSE}Error: {e}{C_RESET}")
+        return
+
+    if '--clear-notes' in args:
+        clear_notes()
+        return
+
+    if '--toggle' in args or '-t' in args:
+        t_flag = '--toggle' if '--toggle' in args else '-t'
+        t_idx = args.index(t_flag)
+        if t_idx + 1 < len(args):
+            toggle_host_entry(args[t_idx + 1])
+        else:
+            print(f"{C_ROSE}Error: Specify a domain or IP to toggle. Example: welcome --toggle bobcares.com{C_RESET}")
+        return
+
+    if '--hosts' in args or '-H' in args:
+        do_ping = ('--ping' in args or '-p' in args)
+        print_hosts_overview(do_ping=do_ping)
+        return
+
+    if '--ping' in args or '-p' in args:
+        print_hosts_overview(do_ping=True)
+        return
+
+    if '--watch' in args or '-w' in args:
+        w_flag = '--watch' if '--watch' in args else '-w'
+        w_idx = args.index(w_flag)
+        interval = 2.0
+        if w_idx + 1 < len(args):
+            try:
+                interval = max(0.5, float(args[w_idx + 1]))
+            except ValueError:
+                pass
+        run_live_watch(interval)
+        return
+
+    if '--mini' in args or '-m' in args or '--compact' in args:
+        stats = get_system_stats()
+        print_mini_summary(stats)
+        return
+
+    print_dashboard(cfg)
+
+if __name__ == '__main__':
+    main()
