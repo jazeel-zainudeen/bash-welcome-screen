@@ -7,9 +7,11 @@
 set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR="$REPO_DIR/bin"
+CONFIG_DIR="$REPO_DIR/config"
 TARGET_DIR="${HOME}/.local/bin"
-CONFIG_DIR="${HOME}/.config/welcome"
-CONFIG_FILE="$CONFIG_DIR/config.json"
+USER_CONFIG_DIR="${HOME}/.config/welcome"
+USER_CONFIG_FILE="$USER_CONFIG_DIR/config.json"
 
 # Colors
 CYAN='\033[0;36m'
@@ -94,19 +96,19 @@ mkdir -p "$TARGET_DIR"
 # 2. Install Welcome Dashboard
 if [ "$INSTALL_WELCOME" = true ]; then
     echo -e "\n${CYAN}--> Installing Welcome Dashboard...${RESET}"
-    chmod +x "$REPO_DIR/welcome"
-    ln -sf "$REPO_DIR/welcome" "$TARGET_DIR/welcome"
-    ln -sf "$REPO_DIR/welcome" "$TARGET_DIR/motd"
-    ln -sf "$REPO_DIR/welcome" "$TARGET_DIR/sysinfo"
-    ln -sf "$REPO_DIR/welcome" "$TARGET_DIR/welcome-screen"
+    chmod +x "$BIN_DIR/welcome"
+    ln -sf "$BIN_DIR/welcome" "$TARGET_DIR/welcome"
+    ln -sf "$BIN_DIR/welcome" "$TARGET_DIR/motd"
+    ln -sf "$BIN_DIR/welcome" "$TARGET_DIR/sysinfo"
+    ln -sf "$BIN_DIR/welcome" "$TARGET_DIR/welcome-screen"
 
     # Initialize configuration if not present
-    if [ ! -f "$CONFIG_FILE" ]; then
-        mkdir -p "$CONFIG_DIR"
-        cp "$REPO_DIR/config.example.json" "$CONFIG_FILE"
-        echo -e "Created default configuration at ${GREEN}$CONFIG_FILE${RESET}"
+    if [ ! -f "$USER_CONFIG_FILE" ]; then
+        mkdir -p "$USER_CONFIG_DIR"
+        cp "$CONFIG_DIR/config.example.json" "$USER_CONFIG_FILE"
+        echo -e "Created default configuration at ${GREEN}$USER_CONFIG_FILE${RESET}"
     else
-        echo -e "Existing configuration found at ${GREEN}$CONFIG_FILE${RESET} (kept untouched)"
+        echo -e "Existing configuration found at ${GREEN}$USER_CONFIG_FILE${RESET} (kept untouched)"
     fi
 
     # Shell startup hook
@@ -132,10 +134,10 @@ fi
 # 3. Install SSH Manager (sshm)
 if [ "$INSTALL_SSHM" = true ]; then
     echo -e "\n${CYAN}--> Installing Interactive SSH Manager (sshm)...${RESET}"
-    chmod +x "$REPO_DIR/sshm"
-    ln -sf "$REPO_DIR/sshm" "$TARGET_DIR/sshm"
-    ln -sf "$REPO_DIR/sshm" "$TARGET_DIR/sshc"
-    ln -sf "$REPO_DIR/sshm" "$TARGET_DIR/ssh-menu"
+    chmod +x "$BIN_DIR/sshm"
+    ln -sf "$BIN_DIR/sshm" "$TARGET_DIR/sshm"
+    ln -sf "$BIN_DIR/sshm" "$TARGET_DIR/sshc"
+    ln -sf "$BIN_DIR/sshm" "$TARGET_DIR/ssh-menu"
     echo -e "${GREEN}✓ Installed sshm, sshc, and ssh-menu symlinks in $TARGET_DIR${RESET}"
 fi
 

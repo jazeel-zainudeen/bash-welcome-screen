@@ -189,6 +189,25 @@ To remove installed symlinks:
 
 ---
 
+## 📂 Repository Structure
+
+```text
+bash-welcome-screen/
+├── bin/                          # Executable Python tools
+│   ├── welcome                   # Welcome dashboard MOTD
+│   └── sshm                      # Interactive SSH manager
+├── config/                       # Configuration templates
+│   └── config.example.json       # Example configuration file
+├── .editorconfig                 # Coding style definitions
+├── install.sh                    # Modular interactive & CLI installer
+├── uninstall.sh                  # Clean modular uninstaller
+├── Makefile                      # Standard build/install/test targets
+├── LICENSE                       # MIT License
+└── README.md                     # Documentation
+```
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
