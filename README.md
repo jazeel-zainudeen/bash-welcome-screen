@@ -69,31 +69,53 @@ git clone https://github.com/jazeel-zainudeen/bash-welcome-screen.git
 cd bash-welcome-screen
 ```
 
-### Option A: Interactive Install (Recommended)
+### Option A: Interactive Wizard (Recommended)
 
-Run `./install.sh` without arguments to select what to install:
+Run `./install.sh` without arguments in any terminal to launch the interactive setup wizard:
 
 ```bash
 ./install.sh
+# or: ./install.sh -i
 ```
 
 ```text
-=== Terminal Welcome & SSH Tools Setup ===
-Choose components to install:
-  1) All (Welcome Dashboard + Interactive SSH Manager sshm) [Default]
-  2) Welcome Dashboard only (welcome)
-  3) Interactive SSH Manager only (sshm)
-
-Preferred display name for greeting [Default: User]:
+╭──────────────────────────────────────────────────────────────────────────────╮
+│   ✨ TERMINAL SUITE INSTALLER  •  welcome & sshm                             │
+│   🐧 Ubuntu 22.04 LTS  🐍 Python 3.10  👤 User  🐚 bash                      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   ✔ Components  ❯  ✔ Profile  ❯  [3] Theme  ❯  4. Features  ❯  5. Confirm    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Choose a color theme for your terminal dashboard:                            │
+│                                                                              │
+│   ❯ [●] 1. Tokyo Night  ■ ■ ■ ■ ■         [○] 4. Dracula      ■ ■ ■ ■ ■      │
+│     [○] 2. Catppuccin   ■ ■ ■ ■ ■         [○] 5. Cyberpunk    ■ ■ ■ ■ ■      │
+│     [○] 3. Nord Arctic  ■ ■ ■ ■ ■         [○] 6. Monochrome   ■ ■ ■ ■ ■      │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ LIVE PREVIEW: Tokyo Night (Aurora)                                           │
+│  🌆 Good evening, User!                      🐧 Ubuntu 22.04 LTS (x86_64)    │
+│  CPU  [■■■░░░░░] 36% 33°C             RAM  [■■■■■■░░] 6.1/7.6G (80%)         │
+│  Disk [■■■■░░░░] 110/219GB (50%)      IP   192.168.1.100                     │
+│  🌿 Git Context: bash-welcome-screen on  master (clean)                     │
+├──────────────────────────────────────────────────────────────────────────────┤
+│   [↑/↓] Select Theme  •  [1-6] Jump  •  [Enter] Next Step  •  [b] Back       │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
-### Option B: Command-Line Flags
+**Interactive Wizard Highlights:**
+- 🧭 **Multi-Step Guided Setup**: Select installation presets, customize individual aliases, personalize greeting display name, pick themes, and toggle dashboard widgets.
+- 🎨 **Live Real-Time Theme Preview**: Color swatches and an instant mini dashboard preview reflecting the exact ANSI colors of the selected theme as you navigate.
+- ⚡ **Animated Progress**: Live checkmarks and step validation during installation.
+- 🚀 **Instant Launch**: One-touch post-install menu to immediately test-run the welcome screen or launch the SSH manager.
+
+### Option B: Command-Line Flags & Automation
 
 ```bash
-./install.sh --all                # Install both welcome and sshm
-./install.sh --welcome            # Install only welcome dashboard
-./install.sh --sshm               # Install only sshm
-./install.sh --name "Your Name"   # Set custom greeting display name
+./install.sh --all                        # Install both welcome and sshm
+./install.sh --welcome                    # Install only welcome dashboard
+./install.sh --sshm                       # Install only sshm
+./install.sh --name "Your Name"           # Set custom greeting display name
+./install.sh --theme catppuccin           # Set preferred theme
+./install.sh --all --non-interactive      # Unattended / CI install
 ```
 
 The installer creates symlinks in `~/.local/bin/` so updates via `git pull` are instantly reflected.
