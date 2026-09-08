@@ -1,11 +1,13 @@
-# 🚀 Terminal Welcome Dashboard (`welcome`)
+# 🚀 Terminal Suite: `welcome` & `sshm` (`bash-welcome-screen`)
 
-A fast, lightweight, and modern terminal dashboard designed for interactive shell startup (MOTD). Built with pure Python 3 and **zero external dependencies**.
+A fast, lightweight, and modern Linux terminal productivity suite featuring a gorgeous interactive startup welcome dashboard (`welcome`) and an interactive TUI SSH connection manager (`sshm`).
+
+Built with pure Python 3 and **zero external dependencies**.
 
 ```text
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ ✨ Welcome back, User!                        🐧 Ubuntu 22.04.2 LTS (x86_64) │
-│ 📅 Tue, Sep 08 2026 · 07:50:00 PM                      ⏱️  Uptime: 12d 6h 50m │
+│ 📅 Tue, Sep 08 2026 · 08:00:00 PM                      ⏱️  Uptime: 12d 7h 00m │
 ├──────────────────────────────────────┬───────────────────────────────────────┤
 │ SYSTEM & HARDWARE                    │ RESOURCE USAGE                        │
 │ OS     : Ubuntu 22.04.2 LTS          │ CPU  [■■■░░░░░] 36.1% 37.0°C          │
@@ -20,6 +22,7 @@ A fast, lightweight, and modern terminal dashboard designed for interactive shel
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ 🔑 SSH Hosts     : 11 configured hosts in ~/.ssh/config                      │
 │ ▸ sshm              Interactive SSH manager & connection picker              │
+│ ▸ sshm <name>       Instant direct connect or filtered picker                │
 │ ▸ welcome --hosts   View all host overrides (or -p to ping check)            │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -28,9 +31,10 @@ A fast, lightweight, and modern terminal dashboard designed for interactive shel
 
 ## ✨ Features
 
-- ⚡ **Zero External Dependencies**: Pure Python 3 standard library (`os`, `sys`, `platform`, `subprocess`, etc.). No `pip install` or virtualenv required.
-- 📊 **Hardware & Resource Gauges**: Clean Unicode progress bars for CPU, RAM, Disk, Swap, plus CPU core count, load averages, and thermal sensors.
-- 🎨 **Built-in Theme Engine**: Switch between stylish color palettes:
+### 🖥️ Welcome Dashboard (`welcome`)
+- ⚡ **Zero External Dependencies**: Pure Python 3 standard library (`os`, `sys`, `platform`, `subprocess`, etc.). No `pip install` or virtual environments needed.
+- 📊 **Hardware & Resource Gauges**: Clean Unicode progress bars for CPU, RAM, Disk, Swap, CPU core count, load averages, and thermal sensors.
+- 🎨 **Built-in Theme Engine**:
   - `tokyo-night` (Aurora / Tokyo Night - default)
   - `catppuccin` (Catppuccin Mocha)
   - `nord` (Nord Arctic)
@@ -47,53 +51,55 @@ A fast, lightweight, and modern terminal dashboard designed for interactive shel
   - Live auto-refreshing monitor (`--watch` / `-w`)
   - Structured JSON export for scripting (`--json` / `-j`)
 
+### 🔑 Interactive SSH Manager (`sshm`)
+- 🚀 **Full TUI Host Picker**: Interactive terminal interface to browse and connect to hosts in `~/.ssh/config`.
+- 🔍 **Fuzzy & Instant Search**: Filter instantly by alias, destination IP, user, or proxy.
+- ⚡ **Direct Connect**: `sshm <query>` connects directly if there is a single match, or opens pre-filtered picker.
+- 📡 **Latency & Health Probing**: Run live latency checks (`sshm test` or press `t`/`T` in the TUI).
+- 🧙 **Add Host Wizard**: Interactive step-by-step wizard to append new hosts directly to `~/.ssh/config`.
+
 ---
 
 ## 📥 Installation
 
-### Quick Install (Automated)
-
-Clone the repository and run the installer:
+Clone the repository:
 
 ```bash
 git clone https://github.com/jazeel-zainudeen/bash-welcome-screen.git
 cd bash-welcome-screen
+```
+
+### Option A: Interactive Install (Recommended)
+
+Run `./install.sh` without arguments to select what to install:
+
+```bash
 ./install.sh
 ```
 
-The installer will:
-1. Symlink `welcome` (and aliases `motd`, `sysinfo`, `welcome-screen`) into `~/.local/bin/`.
-2. Generate default configuration in `~/.config/welcome/config.json`.
-3. Optionally prompt to add an interactive shell hook to your `~/.bashrc` or `~/.zshrc`.
+```text
+=== Terminal Welcome & SSH Tools Setup ===
+Choose components to install:
+  1) All (Welcome Dashboard + Interactive SSH Manager sshm) [Default]
+  2) Welcome Dashboard only (welcome)
+  3) Interactive SSH Manager only (sshm)
+```
 
----
+### Option B: Command-Line Flags
 
-### Manual Install
+```bash
+./install.sh --all        # Install both welcome and sshm
+./install.sh --welcome    # Install only welcome dashboard
+./install.sh --sshm       # Install only sshm
+```
 
-1. Make the script executable:
-   ```bash
-   chmod +x welcome
-   ```
-2. Symlink it to your local bin directory:
-   ```bash
-   mkdir -p ~/.local/bin
-   ln -sf "$(pwd)/welcome" ~/.local/bin/welcome
-   ```
-3. Ensure `~/.local/bin` is in your `PATH` (add to `~/.bashrc` or `~/.zshrc` if needed):
-   ```bash
-   export PATH="$HOME/.local/bin:$PATH"
-   ```
-4. (Optional) Run automatically on interactive terminal launch:
-   ```bash
-   # Add to ~/.bashrc or ~/.zshrc:
-   if [[ $- == *i* ]] && [ -x "$HOME/.local/bin/welcome" ]; then
-       "$HOME/.local/bin/welcome"
-   fi
-   ```
+The installer creates symlinks in `~/.local/bin/` so updates via `git pull` are instantly reflected.
 
 ---
 
 ## 🛠️ Usage & Commands
+
+### Welcome Dashboard (`welcome`)
 
 ```bash
 welcome                  # Display full welcome dashboard
@@ -103,14 +109,14 @@ welcome --watch 1        # Live monitor with custom 1s refresh interval
 welcome --json           # Output complete stats in JSON format (aliases: -j)
 ```
 
-### Theme & Configuration
+#### Theme & Configuration
 
 ```bash
 welcome --theme catppuccin   # Temporarily view with a specific theme
 welcome --config             # Show current config path and settings
 ```
 
-To permanently set a theme or customize dashboard widgets, edit `~/.config/welcome/config.json`:
+To permanently customize settings, edit `~/.config/welcome/config.json`:
 
 ```json
 {
@@ -126,7 +132,7 @@ To permanently set a theme or customize dashboard widgets, edit `~/.config/welco
 }
 ```
 
-### Host Overrides (`/etc/hosts`)
+#### Host Overrides (`/etc/hosts`)
 
 ```bash
 welcome --hosts          # List all custom /etc/hosts entries (active & disabled)
@@ -134,21 +140,51 @@ welcome --ping           # Ping test each custom host entry for connectivity
 welcome --toggle <domain># Toggle domain active/disabled in /etc/hosts (requires sudo)
 ```
 
-### Built-in Quick Notes / Todo
+#### Quick Notes / Reminders
 
 ```bash
-welcome --note "Deploy nginx config update"   # Add task to ~/.welcome_notes
-welcome --clear-notes                          # Clear all notes
+welcome --note "Deploy nginx update"   # Add task to ~/.welcome_notes
+welcome --clear-notes                  # Clear all notes
 ```
+
+---
+
+### SSH Connection Manager (`sshm`)
+
+```bash
+sshm                     # Launch interactive TUI host manager & picker
+sshm <query>             # Instant connect (if 1 match) or pre-filtered picker
+sshm list, -l, ls        # Display formatted table of all SSH hosts
+sshm test, -t [query]    # Test reachability and ping latency for hosts
+sshm add, -a             # Launch interactive wizard to add a new host
+sshm edit, -e            # Open ~/.ssh/config in your $EDITOR
+```
+
+#### TUI Keybindings
+
+| Key | Action |
+| --- | --- |
+| `↑` / `↓`, `PgUp` / `PgDn` | Navigate server list |
+| Letters / Numbers | Real-time search filter |
+| `Backspace` / `Ctrl+U` | Delete last char / clear filter |
+| `Enter` | Connect to selected host via SSH |
+| `t` / `T` | Test latency of selected host / all hosts |
+| `a` | Add new host wizard |
+| `e` | Open `~/.ssh/config` in `$EDITOR` |
+| `r` | Reload SSH configuration |
+| `q` / `Esc` | Exit picker |
 
 ---
 
 ## 🗑️ Uninstallation
 
-To remove binary symlinks and clean up shell configurations:
+To remove installed symlinks:
 
 ```bash
-./uninstall.sh
+./uninstall.sh           # Interactive selection
+./uninstall.sh --all     # Remove all installed tools
+./uninstall.sh --welcome # Remove only welcome
+./uninstall.sh --sshm    # Remove only sshm
 ```
 
 ---

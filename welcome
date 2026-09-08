@@ -877,8 +877,12 @@ def print_dashboard(cfg: dict = None):
     # Footer Section
     if cfg.get('show_ssh', True):
         foot_ssh  = f'{C_INDIGO_B}🔑 SSH Hosts     :{C_RESET} {C_BOLD}{C_WHITE}{s["ssh_count"]}{C_RESET} {C_SLATE_L}configured hosts in ~/.ssh/config{C_RESET}'
-        foot_cmd1 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}sshm{C_RESET}              {C_SLATE_L}Interactive SSH manager & connection picker{C_RESET}'
-        foot_cmd2 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}sshm <name>{C_RESET}       {C_SLATE_L}Instant direct connect or filtered picker{C_RESET}'
+        if shutil.which('sshm'):
+            foot_cmd1 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}sshm{C_RESET}              {C_SLATE_L}Interactive SSH manager & connection picker{C_RESET}'
+            foot_cmd2 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}sshm <name>{C_RESET}       {C_SLATE_L}Instant direct connect or filtered picker{C_RESET}'
+        else:
+            foot_cmd1 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}ssh <host>{C_RESET}        {C_SLATE_L}Connect to configured host in ~/.ssh/config{C_RESET}'
+            foot_cmd2 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}welcome --help{C_RESET}    {C_SLATE_L}View all dashboard options & commands{C_RESET}'
         foot_cmd3 = f'{C_AMBER}▸{C_RESET} {C_BOLD}{C_WHITE}welcome --hosts{C_RESET}   {C_SLATE_L}View all host overrides (or -p to ping check){C_RESET}'
 
         print(mid_line)
