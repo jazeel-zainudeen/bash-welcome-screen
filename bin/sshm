@@ -301,7 +301,10 @@ def open_config_in_editor():
 
 def get_keypress(fd: int) -> str:
     """Reads a single key or complete multi-byte ANSI escape sequence."""
-    ch = os.read(fd, 1).decode('latin1', errors='ignore')
+    try:
+        ch = os.read(fd, 1).decode('latin1', errors='ignore')
+    except KeyboardInterrupt:
+        return 'CTRL_C'
     if not ch:
         return ''
 
@@ -801,7 +804,10 @@ def main():
 
     if not args:
         app = SSHMenuApp()
-        host = app.run()
+        try:
+            host = app.run()
+        except KeyboardInterrupt:
+            host = None
         if host:
             connect_ssh(host)
         return
