@@ -56,8 +56,8 @@ A fast, lightweight, and modern terminal dashboard designed for interactive shel
 Clone the repository and run the installer:
 
 ```bash
-git clone https://github.com/jazeel-zainudeen/welcome-screen.git
-cd welcome-screen
+git clone https://github.com/jazeel-zainudeen/bash-welcome-screen.git
+cd bash-welcome-screen
 ./install.sh
 ```
 
