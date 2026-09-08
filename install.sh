@@ -22,30 +22,48 @@ RESET='\033[0m'
 
 INSTALL_WELCOME=false
 INSTALL_SSHM=false
+FLAG_PASSED=false
+USER_CUSTOM_NAME=""
 
 print_usage() {
-    echo "Usage: ./install.sh [OPTION]"
+    echo "Usage: ./install.sh [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  --all        Install both welcome dashboard and sshm (default)"
-    echo "  --welcome    Install only the welcome dashboard"
-    echo "  --sshm       Install only the interactive SSH manager (sshm)"
-    echo "  --help, -h   Show this help message"
+    echo "  --all            Install both welcome dashboard and sshm (default)"
+    echo "  --welcome        Install only the welcome dashboard"
+    echo "  --sshm           Install only the interactive SSH manager (sshm)"
+    echo "  --name <name>    Set custom display name for greeting"
+    echo "  --help, -h       Show this help message"
     echo ""
 }
 
 # Parse command line flags
-if [ $# -gt 0 ]; then
+while [ $# -gt 0 ]; do
     case "$1" in
         --all)
             INSTALL_WELCOME=true
             INSTALL_SSHM=true
+            FLAG_PASSED=true
+            shift
             ;;
         --welcome)
             INSTALL_WELCOME=true
+            FLAG_PASSED=true
+            shift
             ;;
         --sshm)
             INSTALL_SSHM=true
+            FLAG_PASSED=true
+            shift
+            ;;
+        --name)
+            if [ -n "$2" ] && [[ "$2" != --* ]]; then
+                USER_CUSTOM_NAME="$2"
+                shift 2
+            else
+                echo -e "${AMBER}Error: --name requires a value.${RESET}"
+                exit 1
+            fi
             ;;
         --help|-h)
             print_usage
@@ -57,8 +75,10 @@ if [ $# -gt 0 ]; then
             exit 1
             ;;
     esac
-else
-    # Interactive selection if running in a terminal
+done
+
+# If no component flags passed, prompt or default to all
+if [ "$FLAG_PASSED" = false ]; then
     if [ -t 0 ]; then
         echo -e "${CYAN}${BOLD}=== Terminal Welcome & SSH Tools Setup ===${RESET}"
         echo "Choose components to install:"
@@ -102,13 +122,37 @@ if [ "$INSTALL_WELCOME" = true ]; then
     ln -sf "$BIN_DIR/welcome" "$TARGET_DIR/sysinfo"
     ln -sf "$BIN_DIR/welcome" "$TARGET_DIR/welcome-screen"
 
-    # Initialize configuration if not present
+    # Initialize configuration
+    mkdir -p "$USER_CONFIG_DIR"
     if [ ! -f "$USER_CONFIG_FILE" ]; then
-        mkdir -p "$USER_CONFIG_DIR"
         cp "$CONFIG_DIR/config.example.json" "$USER_CONFIG_FILE"
-        echo -e "Created default configuration at ${GREEN}$USER_CONFIG_FILE${RESET}"
+        echo -e "Created configuration at ${GREEN}$USER_CONFIG_FILE${RESET}"
     else
-        echo -e "Existing configuration found at ${GREEN}$USER_CONFIG_FILE${RESET} (kept untouched)"
+        echo -e "Existing configuration found at ${GREEN}$USER_CONFIG_FILE${RESET}"
+    fi
+
+    # Display name customization
+    DEFAULT_NAME="$(python3 -c "import os, pwd; u=os.getenv('USER') or os.getenv('LOGNAME') or 'User'; print(pwd.getpwuid(os.getuid()).pw_gecos.split(',')[0].strip() or u.capitalize())" 2>/dev/null || echo "User")"
+    
+    if [ -z "$USER_CUSTOM_NAME" ] && [ -t 0 ]; then
+        echo ""
+        read -p "Preferred display name for greeting [Default: $DEFAULT_NAME]: " INPUT_NAME
+        USER_CUSTOM_NAME="${INPUT_NAME:-$DEFAULT_NAME}"
+    fi
+
+    if [ -n "$USER_CUSTOM_NAME" ] && [ -f "$USER_CONFIG_FILE" ]; then
+        python3 -c "
+import json
+try:
+    with open('$USER_CONFIG_FILE', 'r') as f:
+        data = json.load(f)
+    data['user_name'] = '''$USER_CUSTOM_NAME'''
+    with open('$USER_CONFIG_FILE', 'w') as f:
+        json.dump(data, f, indent=2)
+except Exception:
+    pass
+"
+        echo -e "Display name configured as: ${GREEN}$USER_CUSTOM_NAME${RESET}"
     fi
 
     # Shell startup hook

@@ -83,14 +83,17 @@ Choose components to install:
   1) All (Welcome Dashboard + Interactive SSH Manager sshm) [Default]
   2) Welcome Dashboard only (welcome)
   3) Interactive SSH Manager only (sshm)
+
+Preferred display name for greeting [Default: User]:
 ```
 
 ### Option B: Command-Line Flags
 
 ```bash
-./install.sh --all        # Install both welcome and sshm
-./install.sh --welcome    # Install only welcome dashboard
-./install.sh --sshm       # Install only sshm
+./install.sh --all                # Install both welcome and sshm
+./install.sh --welcome            # Install only welcome dashboard
+./install.sh --sshm               # Install only sshm
+./install.sh --name "Your Name"   # Set custom greeting display name
 ```
 
 The installer creates symlinks in `~/.local/bin/` so updates via `git pull` are instantly reflected.
@@ -120,6 +123,7 @@ To permanently customize settings, edit `~/.config/welcome/config.json`:
 
 ```json
 {
+  "user_name": "Your Name",
   "theme": "tokyo-night",
   "show_temperature": true,
   "show_hosts": true,

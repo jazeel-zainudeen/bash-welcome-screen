@@ -138,6 +138,7 @@ NOTES_PATH = os.path.expanduser('~/.welcome_notes')
 
 def load_config() -> dict:
     default_config = {
+        'user_name': '',
         'theme': 'tokyo-night',
         'show_temperature': True,
         'show_hosts': True,
@@ -414,9 +415,22 @@ def get_hosts_insights(path: str = '/etc/hosts') -> dict:
         'disabled_count': len(disabled_entries)
     }
 
-def get_system_stats():
+def get_system_stats(cfg: dict = None):
+    if cfg is None:
+        cfg = load_config()
+
+    custom_name = cfg.get('user_name', '').strip() if cfg else ''
     raw_user = os.getenv('USER') or os.getenv('LOGNAME') or 'user'
-    name_display = raw_user.capitalize()
+
+    if custom_name:
+        name_display = custom_name
+    else:
+        try:
+            import pwd
+            gecos = pwd.getpwuid(os.getuid()).pw_gecos.split(',')[0].strip()
+            name_display = gecos if gecos else raw_user.capitalize()
+        except Exception:
+            name_display = raw_user.capitalize()
 
     distro = 'Linux'
     if os.path.exists('/etc/os-release'):
@@ -722,7 +736,7 @@ def print_dashboard(cfg: dict = None):
     if cfg is None:
         cfg = load_config()
 
-    s = get_system_stats()
+    s = get_system_stats(cfg)
 
     INNER_WIDTH = 78
     COL_L_WIDTH = 38
@@ -970,7 +984,7 @@ def main():
         return
 
     if '--json' in args or '-j' in args:
-        stats = get_system_stats()
+        stats = get_system_stats(cfg)
         print(json.dumps(stats, indent=2, default=str))
         return
 
@@ -1020,7 +1034,7 @@ def main():
         return
 
     if '--mini' in args or '-m' in args or '--compact' in args:
-        stats = get_system_stats()
+        stats = get_system_stats(cfg)
         print_mini_summary(stats)
         return
 
