@@ -55,7 +55,7 @@ Built with pure Python 3 and **zero external dependencies**.
 - 🚀 **Full TUI Host Picker**: Interactive terminal interface to browse and connect to hosts in `~/.ssh/config`.
 - 🔍 **Fuzzy & Instant Search**: Filter instantly by alias, destination IP, user, or proxy.
 - ⚡ **Direct Connect**: `sshm <query>` connects directly if there is a single match, or opens pre-filtered picker.
-- 📡 **Latency & Health Probing**: Run live latency checks (`sshm test` or press `t`/`T` in the TUI).
+- 📡 **Latency & Health Probing**: Run live latency checks (`sshm test` or press `Ctrl+T`/`Ctrl+P` in the TUI).
 - 🧙 **Add Host Wizard**: Interactive step-by-step wizard to append new hosts directly to `~/.ssh/config`.
 
 ---
@@ -191,14 +191,17 @@ sshm edit, -e            # Open ~/.ssh/config in your $EDITOR
 | Key | Action |
 | --- | --- |
 | `↑` / `↓`, `PgUp` / `PgDn` | Navigate server list |
-| Letters / Numbers | Real-time search filter |
+| Letters / Numbers / Space | Real-time instant search filter |
 | `Backspace` / `Ctrl+U` | Delete last char / clear filter |
 | `Enter` | Connect to selected host via SSH |
-| `t` / `T` | Test latency of selected host / all hosts |
-| `a` | Add new host wizard |
-| `e` | Open `~/.ssh/config` in `$EDITOR` |
-| `r` | Reload SSH configuration |
-| `q` / `Esc` | Exit picker |
+| `Ctrl` (Hold) | Live indicator showing next action keys (`T`, `P`, `A`, `E`, `R`, etc.) |
+| `Ctrl+Space` / `F1` | Toggle Ctrl actions guide & next-key indicator |
+| `Ctrl+T` (or `Alt+T`) | Test latency of selected host |
+| `Ctrl+P` (or `Alt+P`) | Test latency of all visible hosts |
+| `Ctrl+A` / `Ctrl+N` | Add new host wizard |
+| `Ctrl+E` (or `Alt+E`) | Open `~/.ssh/config` in `$EDITOR` |
+| `Ctrl+R` (or `Alt+R`) | Reload SSH configuration |
+| `Esc` / `Ctrl+C` | Exit picker (Esc clears search filter if active) |
 
 ---
 

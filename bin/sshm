@@ -297,53 +297,205 @@ def open_config_in_editor():
     subprocess.run([editor, CONFIG_PATH])
 
 
-# --- Key Reading ---
+# --- Key Reading & Terminal Sequences ---
+
+TOKEN_RE = re.compile(
+    r'('
+    r'\x1b\[[0-9;:?]*[a-zA-Z~]'   # CSI sequence e.g. \x1b[A, \x1b[57441;5:1u, \x1b[15~, \x1b[?u
+    r'|\x1bO[a-zA-Z]'            # SS3 sequence e.g. \x1bOP
+    r'|\x1b[a-zA-Z0-9]'          # Alt sequence e.g. \x1bt, \x1bE
+    r'|\x1b'                     # Standalone ESC
+    r'|[\r\n]'                   # Enter
+    r'|[\x00-\x1f\x7f]'          # Control characters e.g. \x00 (Ctrl+Space), \x14 (Ctrl+T)
+    r'|[^\x00-\x1f\x7f\x1b]'     # Regular unicode character
+    r')'
+)
+
+def parse_csi_u(seq: str) -> Optional[str]:
+    """Parses Kitty Keyboard Protocol / CSI u escape sequences."""
+    if not (seq.startswith('\x1b[') and seq.endswith('u')):
+        return None
+    body = seq[2:-1]
+    parts = body.split(';')
+    first = parts[0].split(':')
+    try:
+        keycode = int(first[0])
+    except ValueError:
+        return None
+
+    # Event type defaults to 1 (press)
+    event_type = 1
+    if len(first) > 1:
+        try:
+            event_type = int(first[1])
+        except ValueError:
+            pass
+
+    modifiers = 1
+    if len(parts) > 1:
+        mod_sub = parts[1].split(':')
+        try:
+            modifiers = int(mod_sub[0]) if mod_sub[0] else 1
+        except ValueError:
+            pass
+        if len(mod_sub) > 1:
+            try:
+                event_type = int(mod_sub[1])
+            except ValueError:
+                pass
+
+    # Modifier keys alone: Left Ctrl (57441), Right Ctrl (57442)
+    if keycode in (57441, 57442):
+        if event_type == 3:
+            return 'CTRL_RELEASE'
+        return 'CTRL_PRESS'
+
+    # If any other non-modifier key is released, ignore the release event
+    if event_type == 3:
+        return 'KEY_RELEASE'
+
+    ctrl = bool((modifiers - 1) & 4)
+    alt = bool((modifiers - 1) & 2)
+
+    if ctrl:
+        if keycode in (ord('t'), ord('T'), 20): return 'CTRL_T'
+        if keycode in (ord('p'), ord('P'), 16): return 'CTRL_P'
+        if keycode in (ord('a'), ord('A'), 1): return 'CTRL_A'
+        if keycode in (ord('e'), ord('E'), 5): return 'CTRL_E'
+        if keycode in (ord('r'), ord('R'), 18): return 'CTRL_R'
+        if keycode in (ord('c'), ord('C'), 3): return 'CTRL_C'
+        if keycode in (ord('u'), ord('U'), 21): return 'CTRL_U'
+        if keycode in (ord('n'), ord('N'), 14): return 'CTRL_N'
+        if keycode in (ord('d'), ord('D'), 4): return 'CTRL_D'
+        if keycode == 32: return 'CTRL_SPACE'
+        if keycode in (ord('/'), 31): return 'CTRL_SLASH'
+
+    if alt:
+        if keycode in (ord('t'), ord('T')): return 'ALT_T'
+        if keycode in (ord('p'), ord('P')): return 'ALT_P'
+        if keycode in (ord('a'), ord('A')): return 'ALT_A'
+        if keycode in (ord('e'), ord('E')): return 'ALT_E'
+        if keycode in (ord('r'), ord('R')): return 'ALT_R'
+
+    # Standard functional keys in CSI u
+    if keycode in (13,): return 'ENTER'
+    if keycode in (27,): return 'ESC'
+    if keycode in (127, 8): return 'BACKSPACE'
+    if keycode in (9,): return 'TAB'
+    if keycode in (57373,): return 'UP'
+    if keycode in (57374,): return 'DOWN'
+    if keycode in (57375,): return 'RIGHT'
+    if keycode in (57376,): return 'LEFT'
+    if keycode in (57377,): return 'PAGEUP'
+    if keycode in (57378,): return 'PAGEDOWN'
+    if keycode in (57379,): return 'HOME'
+    if keycode in (57380,): return 'END'
+    if keycode in (57382,): return 'DELETE'
+    if keycode in (57364,): return 'F1'
+    if keycode in (57365,): return 'F2'
+    if keycode in (57366,): return 'F3'
+    if keycode in (57367,): return 'F4'
+    if keycode in (57368,): return 'F5'
+
+    # Plain printable text
+    if not ctrl and not alt and 32 <= keycode <= 0x10FFFF:
+        try:
+            return chr(keycode)
+        except Exception:
+            pass
+
+    return ''
+
+def token_to_key(token: str) -> str:
+    """Converts a raw token string into an action key name or character."""
+    if not token:
+        return ''
+    if token.startswith('\x1b[') and token.endswith('u'):
+        parsed = parse_csi_u(token)
+        if parsed is not None:
+            return parsed
+
+    if token in ('\x1b[A', '\x1bOA'): return 'UP'
+    if token in ('\x1b[B', '\x1bOB'): return 'DOWN'
+    if token in ('\x1b[C', '\x1bOC'): return 'RIGHT'
+    if token in ('\x1b[D', '\x1bOD'): return 'LEFT'
+    if token in ('\x1b[H', '\x1b[1~', '\x1bOH'): return 'HOME'
+    if token in ('\x1b[F', '\x1b[4~', '\x1bOF'): return 'END'
+    if token == '\x1b[5~': return 'PAGEUP'
+    if token == '\x1b[6~': return 'PAGEDOWN'
+    if token == '\x1b[3~': return 'DELETE'
+    if token == '\x1b[2~': return 'INSERT'
+    if token in ('\x1bOP', '\x1b[11~', '\x1b[1;5P', '\x1b[1;5~'): return 'F1'
+    if token in ('\x1bOQ', '\x1b[12~'): return 'F2'
+    if token in ('\x1bOR', '\x1b[13~'): return 'F3'
+    if token in ('\x1bOS', '\x1b[14~'): return 'F4'
+    if token == '\x1b[15~': return 'F5'
+    if token in ('\x1bt', '\x1bT'): return 'ALT_T'
+    if token in ('\x1bp', '\x1bP', '\x1b[20;6~', '\x1b[84;5u', '\x1b[84;6u'): return 'ALT_P'
+    if token in ('\x1ba', '\x1bA'): return 'ALT_A'
+    if token in ('\x1be', '\x1bE'): return 'ALT_E'
+    if token in ('\x1br', '\x1bR'): return 'ALT_R'
+    if token == '\x1b': return 'ESC'
+
+    # Control chars (C0)
+    if token in ('\r', '\n'): return 'ENTER'
+    if token in ('\x7f', '\x08'): return 'BACKSPACE'
+    if token == '\x00': return 'CTRL_SPACE'
+    if token == '\x1f': return 'CTRL_SLASH'
+    if token == '\x01': return 'CTRL_A'
+    if token == '\x03': return 'CTRL_C'
+    if token == '\x04': return 'CTRL_D'
+    if token == '\x05': return 'CTRL_E'
+    if token == '\x0e': return 'CTRL_N'
+    if token == '\x10': return 'CTRL_P'
+    if token == '\x12': return 'CTRL_R'
+    if token == '\x14': return 'CTRL_T'
+    if token == '\x15': return 'CTRL_U'
+    if token == '\t': return 'TAB'
+
+    return token
+
+_KEY_QUEUE: List[str] = []
 
 def get_keypress(fd: int) -> str:
     """Reads a single key or complete multi-byte ANSI escape sequence."""
+    global _KEY_QUEUE
+    if _KEY_QUEUE:
+        return _KEY_QUEUE.pop(0)
+
     try:
-        ch = os.read(fd, 1).decode('latin1', errors='ignore')
+        raw_bytes = os.read(fd, 64)
     except KeyboardInterrupt:
         return 'CTRL_C'
+    if not raw_bytes:
+        return ''
+
+    ch = raw_bytes.decode('latin1', errors='ignore')
     if not ch:
         return ''
 
-    if ch == '\x1b':
+    # If first char is ESC and sequence might be incomplete, wait briefly for remaining bytes
+    if ch == '\x1b' or (ch.startswith('\x1b') and len(ch) >= 2 and not (ch.endswith('~') or (len(ch) >= 3 and ch[-1].isalpha()))):
         r, _, _ = select.select([fd], [], [], 0.04)
-        if not r:
-            return 'ESC'
-        
-        seq = '\x1b'
-        while True:
-            r, _, _ = select.select([fd], [], [], 0.01)
-            if not r:
-                break
-            nxt = os.read(fd, 1).decode('latin1', errors='ignore')
-            if not nxt:
-                break
-            seq += nxt
-            if seq.endswith('~') or (len(seq) >= 3 and seq[1] in ('[', 'O') and seq[-1].isalpha()):
-                break
+        if r:
+            more = os.read(fd, 128).decode('latin1', errors='ignore')
+            ch += more
 
-        if seq in ('\x1b[A', '\x1bOA'): return 'UP'
-        if seq in ('\x1b[B', '\x1bOB'): return 'DOWN'
-        if seq in ('\x1b[C', '\x1bOC'): return 'RIGHT'
-        if seq in ('\x1b[D', '\x1bOD'): return 'LEFT'
-        if seq in ('\x1b[H', '\x1b[1~', '\x1bOH'): return 'HOME'
-        if seq in ('\x1b[F', '\x1b[4~', '\x1bOF'): return 'END'
-        if seq == '\x1b[5~': return 'PAGEUP'
-        if seq == '\x1b[6~': return 'PAGEDOWN'
-        if seq == '\x1b[3~': return 'DELETE'
-        if seq == '\x1b[2~': return 'INSERT'
-        return 'ESC'
+    tokens = TOKEN_RE.findall(ch)
+    if not tokens:
+        return ''
 
-    if ch in ('\r', '\n'): return 'ENTER'
-    if ch in ('\x7f', '\x08'): return 'BACKSPACE'
-    if ch == '\x15': return 'CTRL_U'
-    if ch == '\x03': return 'CTRL_C'
-    if ch == '\x04': return 'CTRL_D'
-    if ch == '\t': return 'TAB'
-    return ch
+    keys = []
+    for t in tokens:
+        k = token_to_key(t)
+        if k:
+            keys.append(k)
+
+    if not keys:
+        return ''
+
+    _KEY_QUEUE.extend(keys[1:])
+    return keys[0]
 
 
 # --- Interactive TUI Runner ---
@@ -358,6 +510,8 @@ class SSHMenuApp:
         self.status_msg_time = 0
         self.running = True
         self.chosen_host = None
+        self.ctrl_held = False
+        self.ctrl_guide_latched = False
 
     def reload_hosts(self):
         saved_statuses = {h['host']: (h.get('status'), h.get('latency')) for h in self.all_hosts}
@@ -369,13 +523,18 @@ class SSHMenuApp:
     def get_filtered_hosts(self) -> List[Dict[str, any]]:
         if not self.filter_text:
             return self.all_hosts
-        q = self.filter_text.lower()
+        terms = self.filter_text.strip().lower().split()
+        if not terms:
+            return self.all_hosts
         return [
             h for h in self.all_hosts
-            if q in h['host'].lower()
-            or q in h.get('hostname', '').lower()
-            or q in h.get('user', '').lower()
-            or q in h.get('proxyjump', '').lower()
+            if all(
+                t in h['host'].lower()
+                or t in h.get('hostname', '').lower()
+                or t in h.get('user', '').lower()
+                or t in h.get('proxyjump', '').lower()
+                for t in terms
+            )
         ]
 
     def set_toast(self, msg: str):
@@ -453,10 +612,10 @@ class SSHMenuApp:
         prompt = f"  {C_AMBER}🔍 Search:{C_RESET} "
         if self.filter_text:
             search_val = f"{C_BOLD}{C_WHITE}{self.filter_text}{C_RESET}{C_CYAN}█{C_RESET}"
-            hint = f"{C_SLATE_L}[Ctrl+U to clear]{C_RESET}"
+            hint = f"{C_SLATE_L}[Esc / Ctrl+U to clear]{C_RESET}"
         else:
             search_val = f"{C_SLATE_L}Type to filter hosts (e.g. stage, dmz, root)...{C_RESET}"
-            hint = ""
+            hint = f"{C_SLATE_L}[Ctrl: hold for actions / Ctrl+Space]{C_RESET}" if max_w >= 85 else ""
         left_search = prompt + search_val
         gap2 = max(2, max_w - str_width(left_search) - str_width(hint))
         buf.append(f"{left_search}{' ' * gap2}{hint}")
@@ -528,9 +687,42 @@ class SSHMenuApp:
 
         buf.append(div)
 
-        # 5. Selected Host Detail / Toast Bar
+        is_ctrl_active = self.ctrl_held or self.ctrl_guide_latched
+
+        # 5. Selected Host Detail / Toast Bar / Ctrl Indicator
         now = time.time()
-        if self.status_message and (now - self.status_msg_time < 5.0):
+        if is_ctrl_active:
+            lbl = "CTRL HELD" if self.ctrl_held else "CTRL ACTIONS"
+            badge = f"{C_BOLD}{C_AMBER}⚡ [{lbl}]{C_RESET}"
+            if max_w >= 106:
+                detail_line = (
+                    f"  {badge} {C_WHITE}Next key:{C_RESET} "
+                    f"{C_EMERALD}[T]{C_WHITE} Test{C_RESET}  "
+                    f"{C_EMERALD}[P]{C_WHITE} Test All{C_RESET}  "
+                    f"{C_AMBER}[A]{C_WHITE} Add{C_RESET}  "
+                    f"{C_INDIGO}[E]{C_WHITE} Edit{C_RESET}  "
+                    f"{C_CYAN}[R]{C_WHITE} Reload{C_RESET}  "
+                    f"{C_SLATE_L}[U]{C_WHITE} Clear{C_RESET}  "
+                    f"{C_ROSE}[Esc]{C_WHITE} Cancel{C_RESET}"
+                )
+            elif max_w >= 78:
+                detail_line = (
+                    f"  {badge} {C_WHITE}Next key:{C_RESET} "
+                    f"{C_EMERALD}[T]{C_WHITE} Test{C_RESET}  "
+                    f"{C_EMERALD}[P]{C_WHITE} All{C_RESET}  "
+                    f"{C_AMBER}[A]{C_WHITE} Add{C_RESET}  "
+                    f"{C_INDIGO}[E]{C_WHITE} Edit{C_RESET}  "
+                    f"{C_CYAN}[R]{C_WHITE} Reload{C_RESET}"
+                )
+            else:
+                detail_line = (
+                    f"  {badge} "
+                    f"{C_EMERALD}[T]{C_WHITE} Test{C_RESET} "
+                    f"{C_EMERALD}[P]{C_WHITE} All{C_RESET} "
+                    f"{C_AMBER}[A]{C_WHITE} Add{C_RESET} "
+                    f"{C_INDIGO}[E]{C_WHITE} Edit{C_RESET}"
+                )
+        elif self.status_message and (now - self.status_msg_time < 5.0):
             detail_line = f"  {C_AMBER}⚡ {self.status_message}{C_RESET}"
         elif filtered:
             sel = filtered[self.selected_idx]
@@ -548,13 +740,57 @@ class SSHMenuApp:
         buf.append(detail_line)
 
         # 6. Shortcut Keys Footer
-        hk1 = f"{C_CYAN}[Enter]{C_RESET} Connect"
-        hk2 = f"{C_EMERALD}[t]{C_RESET} Test"
-        hk3 = f"{C_EMERALD}[T]{C_RESET} Test All"
-        hk4 = f"{C_AMBER}[a]{C_RESET} Add"
-        hk5 = f"{C_INDIGO}[e]{C_RESET} Edit"
-        hk6 = f"{C_ROSE}[q/Esc]{C_RESET} Quit"
-        hk_all = f"  {hk1}  {hk2}  {hk3}  {hk4}  {hk5}  {hk6}"
+        if is_ctrl_active:
+            ctrl_prefix = f"{C_BOLD}{C_AMBER}[Ctrl] HELD ▸{C_RESET}" if self.ctrl_held else f"{C_BOLD}{C_AMBER}[Ctrl] GUIDE ▸{C_RESET}"
+            if max_w >= 92:
+                hk_t = f"{C_EMERALD}[T]{C_RESET} Test"
+                hk_p = f"{C_EMERALD}[P]{C_RESET} Test All"
+                hk_a = f"{C_AMBER}[A]{C_RESET} Add"
+                hk_e = f"{C_INDIGO}[E]{C_RESET} Edit"
+                hk_r = f"{C_CYAN}[R]{C_RESET} Reload"
+                hk_u = f"{C_SLATE_L}[U]{C_RESET} Clear"
+                hk_esc = f"{C_ROSE}[Esc]{C_RESET} Cancel"
+                hk_all = f"  {ctrl_prefix}  {hk_t}  {hk_p}  {hk_a}  {hk_e}  {hk_r}  {hk_u}  {hk_esc}"
+            elif max_w >= 75:
+                hk_t = f"{C_EMERALD}[T]{C_RESET} Test"
+                hk_p = f"{C_EMERALD}[P]{C_RESET} All"
+                hk_a = f"{C_AMBER}[A]{C_RESET} Add"
+                hk_e = f"{C_INDIGO}[E]{C_RESET} Edit"
+                hk_r = f"{C_CYAN}[R]{C_RESET} Reload"
+                hk_esc = f"{C_ROSE}[Esc]{C_RESET} Exit"
+                hk_all = f"  {ctrl_prefix}  {hk_t}  {hk_p}  {hk_a}  {hk_e}  {hk_r}  {hk_esc}"
+            else:
+                hk_t = f"{C_EMERALD}[T]{C_RESET} Test"
+                hk_p = f"{C_EMERALD}[P]{C_RESET} All"
+                hk_a = f"{C_AMBER}[A]{C_RESET} Add"
+                hk_e = f"{C_INDIGO}[E]{C_RESET} Edit"
+                hk_r = f"{C_CYAN}[R]{C_RESET} Reload"
+                hk_all = f"  {C_BOLD}{C_AMBER}[Ctrl]▸{C_RESET} {hk_t} {hk_p} {hk_a} {hk_e} {hk_r}"
+        else:
+            # Standard footer - ALWAYS use Ctrl+ (never ^)
+            if max_w >= 90:
+                hk1 = f"{C_CYAN}[Enter]{C_RESET} Connect"
+                hk2 = f"{C_EMERALD}[Ctrl+T]{C_RESET} Test"
+                hk3 = f"{C_EMERALD}[Ctrl+P]{C_RESET} Test All"
+                hk4 = f"{C_AMBER}[Ctrl+A]{C_RESET} Add"
+                hk5 = f"{C_INDIGO}[Ctrl+E]{C_RESET} Edit"
+                hk6 = f"{C_ROSE}[Esc]{C_RESET} Quit"
+                hk_all = f"  {hk1}  {hk2}  {hk3}  {hk4}  {hk5}  {hk6}"
+            elif max_w >= 78:
+                hk1 = f"{C_CYAN}[Enter]{C_RESET} Conn"
+                hk2 = f"{C_EMERALD}[Ctrl+T]{C_RESET} Test"
+                hk3 = f"{C_EMERALD}[Ctrl+P]{C_RESET} All"
+                hk4 = f"{C_AMBER}[Ctrl+A]{C_RESET} Add"
+                hk5 = f"{C_INDIGO}[Ctrl+E]{C_RESET} Edit"
+                hk6 = f"{C_ROSE}[Esc]{C_RESET} Quit"
+                hk_all = f"  {hk1} {hk2} {hk3} {hk4} {hk5} {hk6}"
+            else:
+                hk1 = f"{C_CYAN}[Enter]{C_RESET} Conn"
+                hk2 = f"{C_EMERALD}[Ctrl+T]{C_RESET} Test"
+                hk3 = f"{C_EMERALD}[Ctrl+P]{C_RESET} All"
+                hk4 = f"{C_AMBER}[Ctrl+A]{C_RESET} Add"
+                hk5 = f"{C_INDIGO}[Ctrl+E]{C_RESET} Edit"
+                hk_all = f"  {hk1} {hk2} {hk3} {hk4} {hk5}"
         buf.append(hk_all)
 
         # Home cursor and write each strictly-clipped line
@@ -579,7 +815,9 @@ class SSHMenuApp:
 
         try:
             termios.tcsetattr(fd, termios.TCSADRAIN, new_settings)
-            sys.stdout.write('\033[?1049h\033[?25l\033[2J')
+            # Enter alternate screen, hide cursor, clear screen, and request Kitty Keyboard Protocol
+            # Flag 11 = Disambiguate (1) + Report Event Types (2) + Report All Keys as Escape Codes (8)
+            sys.stdout.write('\033[?1049h\033[?25l\033[2J\033[>11u')
             sys.stdout.flush()
 
             self.render()
@@ -589,6 +827,34 @@ class SSHMenuApp:
                 if not key:
                     continue
 
+                if key == 'KEY_RELEASE':
+                    continue
+
+                if key == 'CTRL_PRESS':
+                    self.ctrl_held = True
+                    self.render()
+                    continue
+
+                elif key == 'CTRL_RELEASE':
+                    self.ctrl_held = False
+                    self.render()
+                    continue
+
+                elif key in ('CTRL_SPACE', 'CTRL_SLASH', 'F1'):
+                    self.ctrl_guide_latched = not self.ctrl_guide_latched
+                    self.render()
+                    continue
+
+                # If holding Ctrl or guide is latched, map single-letter actions
+                if self.ctrl_held or self.ctrl_guide_latched:
+                    if key in ('t', 'T'): key = 'CTRL_T'
+                    elif key in ('p', 'P'): key = 'CTRL_P'
+                    elif key in ('a', 'A', 'n', 'N'): key = 'CTRL_A'
+                    elif key in ('e', 'E'): key = 'CTRL_E'
+                    elif key in ('r', 'R'): key = 'CTRL_R'
+                    elif key in ('u', 'U'): key = 'CTRL_U'
+                    elif key in ('c', 'C'): key = 'CTRL_C'
+
                 filtered = self.get_filtered_hosts()
                 num_items = len(filtered)
 
@@ -596,10 +862,14 @@ class SSHMenuApp:
                     self.chosen_host = None
                     break
 
-                elif key in ('ESC', 'q', 'Q'):
-                    if self.filter_text:
+                elif key == 'ESC':
+                    if self.ctrl_guide_latched:
+                        self.ctrl_guide_latched = False
+                        self.render()
+                    elif self.filter_text:
                         self.filter_text = ''
                         self.selected_idx = 0
+                        self.render()
                     else:
                         self.chosen_host = None
                         break
@@ -607,25 +877,31 @@ class SSHMenuApp:
                 elif key == 'UP':
                     if num_items > 0:
                         self.selected_idx = (self.selected_idx - 1) % num_items
+                    self.render()
 
                 elif key == 'DOWN':
                     if num_items > 0:
                         self.selected_idx = (self.selected_idx + 1) % num_items
+                    self.render()
 
                 elif key == 'PAGEUP':
                     if num_items > 0:
                         self.selected_idx = max(0, self.selected_idx - 5)
+                    self.render()
 
                 elif key == 'PAGEDOWN':
                     if num_items > 0:
                         self.selected_idx = min(num_items - 1, self.selected_idx + 5)
+                    self.render()
 
                 elif key == 'HOME':
                     self.selected_idx = 0
+                    self.render()
 
                 elif key == 'END':
                     if num_items > 0:
                         self.selected_idx = num_items - 1
+                    self.render()
 
                 elif key == 'ENTER':
                     if filtered and 0 <= self.selected_idx < len(filtered):
@@ -636,55 +912,65 @@ class SSHMenuApp:
                     if self.filter_text:
                         self.filter_text = self.filter_text[:-1]
                         self.selected_idx = 0
+                    self.render()
 
                 elif key == 'CTRL_U':
+                    self.ctrl_guide_latched = False
                     self.filter_text = ''
                     self.selected_idx = 0
+                    self.render()
 
-                elif key == 't':
+                elif key in ('CTRL_T', 'ALT_T', 'F5'):
+                    self.ctrl_guide_latched = False
                     self.test_selected_host()
 
-                elif key == 'T':
+                elif key in ('CTRL_P', 'ALT_P'):
+                    self.ctrl_guide_latched = False
                     self.test_all_visible_hosts()
 
-                elif key == 'r':
+                elif key in ('CTRL_R', 'ALT_R'):
+                    self.ctrl_guide_latched = False
                     self.reload_hosts()
                     self.set_toast("SSH configuration reloaded")
+                    self.render()
 
-                elif key == 'a':
+                elif key in ('CTRL_A', 'CTRL_N', 'ALT_A', 'F2'):
+                    self.ctrl_guide_latched = False
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                    sys.stdout.write('\033[?1049l\033[?25h')
+                    sys.stdout.write('\033[<u\033[?1049l\033[?25h')
                     sys.stdout.flush()
 
                     run_add_host_wizard()
 
                     termios.tcsetattr(fd, termios.TCSADRAIN, new_settings)
-                    sys.stdout.write('\033[?1049h\033[?25l\033[2J')
+                    sys.stdout.write('\033[?1049h\033[?25l\033[2J\033[>11u')
                     sys.stdout.flush()
                     self.reload_hosts()
+                    self.render()
 
-                elif key == 'e':
+                elif key in ('CTRL_E', 'ALT_E', 'F4'):
+                    self.ctrl_guide_latched = False
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                    sys.stdout.write('\033[?1049l\033[?25h')
+                    sys.stdout.write('\033[<u\033[?1049l\033[?25h')
                     sys.stdout.flush()
 
                     open_config_in_editor()
 
                     termios.tcsetattr(fd, termios.TCSADRAIN, new_settings)
-                    sys.stdout.write('\033[?1049h\033[?25l\033[2J')
+                    sys.stdout.write('\033[?1049h\033[?25l\033[2J\033[>11u')
                     sys.stdout.flush()
                     self.reload_hosts()
                     self.set_toast("SSH config updated from editor")
+                    self.render()
 
-                elif len(key) == 1 and key.isprintable():
+                elif len(key) == 1 and key.isprintable() and not (self.ctrl_held or self.ctrl_guide_latched):
                     self.filter_text += key
                     self.selected_idx = 0
-
-                self.render()
+                    self.render()
 
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            sys.stdout.write('\033[?1049l\033[?25h\033[0m')
+            sys.stdout.write('\033[<u\033[?1049l\033[?25h\033[0m')
             sys.stdout.flush()
 
         return self.chosen_host
@@ -792,11 +1078,14 @@ def print_help():
       {C_CYAN}[letters / numbers]{C_RESET} Real-time instant search by name, IP, user, or proxy
       {C_CYAN}Backspace / Ctrl+U{C_RESET}   Delete last char / clear filter
       {C_CYAN}Enter{C_RESET}                Connect to selected host via native ssh
-      {C_CYAN}t / T{C_RESET}                Test latency of selected host / all hosts
-      {C_CYAN}a{C_RESET}                    Add new host wizard
-      {C_CYAN}e{C_RESET}                    Edit ~/.ssh/config in $EDITOR
-      {C_CYAN}r{C_RESET}                    Reload SSH config
-      {C_CYAN}q / Esc{C_RESET}              Exit picker cleanly
+      {C_CYAN}Ctrl (Hold){C_RESET}          Live indicator showing what key to press next
+      {C_CYAN}Ctrl+Space / F1{C_RESET}      Toggle Ctrl actions guide & next-key indicator
+      {C_CYAN}Ctrl+T (or Alt+T){C_RESET}    Test latency of selected host
+      {C_CYAN}Ctrl+P (or Alt+P){C_RESET}    Test latency of all visible hosts
+      {C_CYAN}Ctrl+A / Ctrl+N{C_RESET}      Add new host wizard
+      {C_CYAN}Ctrl+E (or Alt+E){C_RESET}    Edit ~/.ssh/config in $EDITOR
+      {C_CYAN}Ctrl+R (or Alt+R){C_RESET}    Reload SSH config
+      {C_CYAN}Esc / Ctrl+C{C_RESET}         Exit picker cleanly (Esc clears filter if active)
 """)
 
 def main():
