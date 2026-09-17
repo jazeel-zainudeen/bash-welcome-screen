@@ -646,7 +646,10 @@ class SSHMenuApp:
                 is_sel = (actual_idx == self.selected_idx)
                 row_num = str(actual_idx + 1)
 
-                h_host = truncate_to_width(h['host'], col_host)
+                h_host_raw = h['host']
+                if 'live' in h_host_raw.lower():
+                    h_host_raw += " [LIVE]"
+                h_host = truncate_to_width(h_host_raw, col_host)
                 h_ip   = truncate_to_width(h.get('hostname', '-'), col_ip)
                 h_user = truncate_to_width(h.get('user', '-') or '-', col_user)
                 h_port = truncate_to_width(str(h.get('port', '22')), col_port)
@@ -733,7 +736,8 @@ class SSHMenuApp:
             jump = sel.get('proxyjump', '')
             jump_info = f" {C_INDIGO}(via {jump}){C_RESET}" if jump else ""
             key_info = f" {C_SLATE_L}[key: {os.path.basename(sel['identityfile'])}]{C_RESET}" if sel.get('identityfile') else ""
-            detail_line = f"  {C_SLATE_L}💡 Selected: {C_BOLD}{C_WHITE}{sel['host']}{C_RESET} {C_SLATE_L}→{C_RESET} {C_CYAN}{dest}{C_RESET}{jump_info}{key_info}"
+            caution = f" {C_BOLD}{C_ROSE}[⚠️ CAUTION: LIVE SERVER]{C_RESET}" if 'live' in sel['host'].lower() else ""
+            detail_line = f"  {C_SLATE_L}💡 Selected: {C_BOLD}{C_WHITE}{sel['host']}{C_RESET} {C_SLATE_L}→{C_RESET} {C_CYAN}{dest}{C_RESET}{jump_info}{key_info}{caution}"
         else:
             detail_line = f"  {C_SLATE_L}No server selected{C_RESET}"
 
@@ -994,6 +998,8 @@ def list_hosts_table(filter_str: str = ''):
 
     for idx, h in enumerate(hosts, 1):
         host_str = h['host']
+        if 'live' in host_str.lower():
+            host_str += " [LIVE]"
         ip_str   = h.get('hostname', '-')
         user_str = h.get('user', '-') or '-'
         port_str = str(h.get('port', '22'))
@@ -1035,7 +1041,10 @@ def test_hosts_cli(filter_str: str = ''):
 
         s_col  = pad_to_width(status_disp, 12)
         l_col  = pad_to_width(lat_disp, 10)
-        h_col  = pad_to_width(h['host'], 24)
+        host_str = h['host']
+        if 'live' in host_str.lower():
+            host_str += " [LIVE]"
+        h_col  = pad_to_width(host_str, 24)
         ip_col = pad_to_width(h.get('hostname', '-'), 18)
         p_col  = str(h.get('port', 22))
 
@@ -1052,8 +1061,12 @@ def connect_ssh(host_alias: str):
         u = matched.get('user') or os.getenv('USER', 'user')
         dest = matched.get('hostname', host_alias)
         p = matched.get('port', '22')
+        if 'live' in host_alias.lower():
+            print(f"\n{C_BOLD}{C_ROSE}⚠️  CAUTION: You are connecting to a LIVE production server!{C_RESET}")
         print(f"\n{C_BOLD}{C_CYAN_B}⚡ Connecting to {C_WHITE}{host_alias}{C_CYAN_B} ({u}@{dest}:{p})...{C_RESET}\n")
     else:
+        if 'live' in host_alias.lower():
+            print(f"\n{C_BOLD}{C_ROSE}⚠️  CAUTION: You are connecting to a LIVE production server!{C_RESET}")
         print(f"\n{C_BOLD}{C_CYAN_B}⚡ Connecting to {C_WHITE}{host_alias}{C_CYAN_B}...{C_RESET}\n")
     os.execvp('ssh', ['ssh', host_alias])
 
